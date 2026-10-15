@@ -53,6 +53,9 @@ have to set those up first: the first `/liveframe:open` checks the Mac, lists wh
 installs it all with one yes (the parts that need your Mac password or a GitHub sign-in come as one
 command to paste in Terminal).
 
+To update later, run `/liveframe:update`: it says what's new and updates when you say yes. What's
+new in each version: [CHANGELOG.md](CHANGELOG.md).
+
 ## Set up an app (once)
 
 1. **Create an empty repo** on GitHub for the designs, e.g. `<org>/<app>-design`.
@@ -98,7 +101,7 @@ The design's handoff page has the exact command.
 
 | | |
 |---|---|
-| `plugin/skills/` | `/liveframe:setup`, `/liveframe:open`, `/liveframe:variants`, `/liveframe:take` |
+| `plugin/skills/` | `/liveframe:setup`, `/liveframe:open`, `/liveframe:variants`, `/liveframe:take`, `/liveframe:update` |
 | `plugin/app/` | Liveframe itself: `server.mjs` and `lib/` (Node, no packages), `public/` (its pages), `kit/` (Claude's rules in each design's folder), `bin/` (the scripts the skills run) |
 | `plugin/app/examples/app.example.json` | An app profile, for a made-up app |
 
