@@ -24,9 +24,13 @@ the design repo     ← designs (each one a change to the app, a journal, publis
 1. **Design.** In Liveframe, **New design** opens Claude in the design's own copy of the app. Say
    which page and what to change; the canvas shows the real page as Claude changes it. Every change
    is saved and shared by itself.
+
+   **Ideas side by side:** ask for variants ("try a dark version and a compact one") and Claude builds
+   them behind a switcher Liveframe draws over the app; the canvas shows a row per idea. Tell Claude
+   which one wins and it keeps that one and takes the rest out (`/liveframe:variants`).
 2. **Publish.** Saves the design's screens as plain pages for review, online a minute later.
-3. **Ready for Development.** Checks the design (published as it is, still fits the app, frontend
-   only, design-system notes), then Claude writes a handoff note from the design's journal.
+3. **Ready for Development.** Checks the design (published as it is, one idea left, still fits the
+   app, frontend only, design-system notes), then Claude writes a handoff note from the design's journal.
 4. **Take it.** The engineer runs `/liveframe:take`: a branch and a pull request with the change and
    the note. When it's merged, Liveframe archives the design.
 
@@ -92,7 +96,7 @@ The design's handoff page has the exact command.
 
 | | |
 |---|---|
-| `plugin/skills/` | `/liveframe:setup`, `/liveframe:open`, `/liveframe:take` |
+| `plugin/skills/` | `/liveframe:setup`, `/liveframe:open`, `/liveframe:variants`, `/liveframe:take` |
 | `plugin/app/` | Liveframe itself: `server.mjs` and `lib/` (Node, no packages), `public/` (its pages), `kit/` (Claude's rules in each design's folder), `bin/` (the scripts the skills run) |
 | `plugin/app/examples/app.example.json` | An app profile, for a made-up app |
 

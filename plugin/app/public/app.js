@@ -289,23 +289,32 @@ async function design(id) {
     if (stamp) return `http://127.0.0.1:${location.port}/view/pictures/${enc}/${encodeURIComponent(c.page)}@${width}x${height}.jpg?v=${stamp}`;
     // An archived design: its last published pictures.
     const v = state.d.latestVersion;
-    const shot = v?.screens?.find((s) => s.page === c.page)?.picture;
+    const shot = v?.screens?.find((s) => (s.key ?? s.page) === c.page)?.picture;
     return state.d.status === "archived" && shot ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(shot)}` : null;
   };
 
+  // The canvas: the design's screens; with ideas, a row per idea ("Before" first), side by side.
   function groups() {
     const d = state.d;
     const live = d.status === "designing";
     const v = d.latestVersion;
-    const cards = d.screens.map((s) => ({
-      page: s.page,
+    const withIdea = (route, idea) => (idea ? `${route}${route.includes("?") ? "&" : "?"}idea=${encodeURIComponent(idea)}` : route);
+    const published = (file) => (v ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(file)}` : "#");
+    const card = (s, idea) => ({
+      page: idea ? `${s.page}~${idea}` : s.page,
       title: s.name,
       rename: live ? { page: s.page } : null,
       note: s.route,
       thumb: "about:blank",
-      href: live ? `${d.app.url}${s.route}` : v ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(s.page)}.html` : "#",
-    }));
-    return [{ title: "Screens", sub: plural(cards.length, "screen"), rows: [{ cards }] }];
+      href: live ? `${d.app.url}${withIdea(s.route, idea)}` : published(idea ? `${s.page}~${idea}.html` : `${s.page}.html`),
+    });
+    if (!d.ideas) return [{ title: "Screens", sub: plural(d.screens.length, "screen"), rows: [{ cards: d.screens.map((s) => card(s, null)) }] }];
+    const options = [{ id: "before", name: "Before", note: "The app as it is" }, ...d.ideas.ideas];
+    return [{
+      title: "Ideas",
+      sub: `${plural(d.ideas.ideas.length, "idea")} · ${plural(d.screens.length, "screen")}`,
+      rows: options.map((o) => ({ label: o.note ? `${o.name} · ${o.note}` : o.name, cards: d.screens.map((s) => card(s, o.id)) })),
+    }];
   }
 
   function drawStage({ keep = false } = {}) {
@@ -318,7 +327,7 @@ async function design(id) {
         h("span", null, d.status === "designing" ? "Design with Claude and tell it which page you want to change. It shows here as soon as Claude adds it." : "This design has no screens.")), toolbar());
       return;
     }
-    const shape = JSON.stringify([d.id, d.screens, d.status, state.device]);
+    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device]);
     if (keep && state.canvas?.shape === shape) return;
     const camera = keep ? state.canvas?.camera() : null;
     state.canvas?.destroy();
@@ -408,7 +417,7 @@ async function design(id) {
       actions.push(h("span", { class: "pop-anchor" },
         publishTip ? h("span", { class: "tip-wrap tip-end", "data-tip": publishTip }, publishBtn) : publishBtn,
         state.pop === "publish" ? publishPop() : null));
-      const readyTip = !last ? "Publish a version first" : d.unpublished ? `Changed since v${last.n}: publish again first` : null;
+      const readyTip = d.ideas ? `Still ${plural(d.ideas.ideas.length + 1, "option")} (Before and the ideas): tell Claude which one wins, then publish` : !last ? "Publish a version first" : d.unpublished ? `Changed since v${last.n}: publish again first` : null;
       const b = h("button", { type: "button", class: "btn btn--primary", disabled: !!readyTip, onclick: () => readyModal() }, "Ready for Development");
       actions.push(readyTip ? h("span", { class: "tip-wrap tip-end", "data-tip": readyTip }, b) : b);
     } else {
@@ -461,7 +470,7 @@ async function design(id) {
 
   async function readyModal() {
     const d = state.d;
-    const list = h("ul", { class: "checks" }, ["Published", "Up to date with the app", "Only the frontend", "Design system"].map((label) =>
+    const list = h("ul", { class: "checks" }, ["Published", "One idea left", "Up to date with the app", "Only the frontend", "Design system"].map((label) =>
       h("li", { class: "check check--wait" }, h("span", { class: "check__icon" }), h("div", null, h("div", { class: "check__label" }, label), h("div", { class: "check__detail" }, "Checking…")))));
     const send = h("button", { type: "button", class: "btn btn--primary", disabled: true }, "Send to development", icon("send", 14));
     const status = h("p", { class: "muted", hidden: true });

@@ -1,6 +1,7 @@
 // Pictures of a design's screens, so its canvas opens at once without running the app per screen.
 //
-//   <STATE_DIR>/pictures/<id>/<page>@<w>x<h>.jpg
+//   <STATE_DIR>/pictures/<id>/<page>@<w>x<h>.jpg          a screen
+//   <STATE_DIR>/pictures/<id>/<page>~<idea>@<w>x<h>.jpg   a screen on one idea (designs with ideas)
 //
 // Taken with Chrome (lib/chrome.mjs) from the design's running app, one at a time. Retaken when the
 // design is saved, and once per size each time Liveframe starts. Every new picture is announced to
@@ -9,13 +10,25 @@
 import fs from "node:fs";
 import path from "node:path";
 import { STATE_DIR } from "./config.mjs";
-import { screensOf, statusOf, touch } from "./designs.mjs";
+import { screensOf, statusOf, touch, metaOf } from "./designs.mjs";
+import { optionsOf } from "./ideas.mjs";
 import { openPage } from "./chrome.mjs";
 import { notify } from "./events.mjs";
 
 const DIR = path.join(STATE_DIR, "pictures");
 
-const fileOf = (id, page, w, h) => path.join(DIR, id, `${page}@${w}x${h}.jpg`);
+const fileOf = (id, key, w, h) => path.join(DIR, id, `${key}@${w}x${h}.jpg`);
+
+/** What the canvas shows: each screen, or each screen on each idea. [{ key, route }] */
+export function shotsOf(id) {
+  const options = optionsOf(metaOf(id).ideas ?? null);
+  return screensOf(id).flatMap(({ page, route }) =>
+    options.length ? options.map((o) => ({ key: `${page}~${o.id}`, route: withIdea(route, o.id) })) : [{ key: page, route }],
+  );
+}
+
+/** A page's address with the idea pinned (the switcher reads ?idea=). */
+export const withIdea = (route, idea) => (idea ? `${route}${route.includes("?") ? "&" : "?"}idea=${encodeURIComponent(idea)}` : route);
 export const sizeOk = (w, h) => Number.isInteger(w) && Number.isInteger(h) && w >= 200 && w <= 2560 && h >= 200 && h <= 2560;
 
 const queue = new Map(); // "<id>|<page>|<w>|<h>" → job
@@ -29,20 +42,20 @@ export function picturesOf(id, w, h) {
   const first = !checked.has(`${id}|${w}x${h}`);
   checked.add(`${id}|${w}x${h}`);
   const out = {};
-  for (const { page, route } of screensOf(id)) {
+  for (const { key, route } of shotsOf(id)) {
     let stat = null;
     try {
-      stat = fs.statSync(fileOf(id, page, w, h));
+      stat = fs.statSync(fileOf(id, key, w, h));
     } catch {}
-    if (stat) out[page] = Math.round(stat.mtimeMs);
-    if (!stat || first) want(id, page, route, w, h);
+    if (stat) out[key] = Math.round(stat.mtimeMs);
+    if (!stat || first) want(id, key, route, w, h);
   }
   run();
   return out;
 }
 
-export function pictureFile(id, page, w, h) {
-  const file = fileOf(id, page, w, h);
+export function pictureFile(id, key, w, h) {
+  const file = fileOf(id, key, w, h);
   return fs.existsSync(file) ? file : null;
 }
 
@@ -54,7 +67,7 @@ function want(id, page, route, w, h) {
 export function retake(id) {
   for (const size of sizes.get(id) ?? []) {
     const [w, h] = size.split("x").map(Number);
-    for (const { page, route } of screensOf(id)) want(id, page, route, w, h);
+    for (const { key, route } of shotsOf(id)) want(id, key, route, w, h);
   }
   run();
 }

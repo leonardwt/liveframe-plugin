@@ -72,6 +72,15 @@ export async function readyCheck(id) {
   else if (s.unpublished) results.push({ label: "Published", status: "fail", detail: `Something changed since v${s.latestVersion.n}. Publish again, so the engineer sees the final version.` });
   else results.push({ label: "Published", status: "pass", detail: `v${s.latestVersion.n} · ${s.latestVersion.name} is the latest.` });
 
+  // 1b. One idea left: no ideas file, nothing switching on an idea, no helper.
+  const leftovers = [];
+  for (const f of files) {
+    if (/(^|\/)liveframe\.ideas?\.[a-z]+$|(^|\/)liveframe\.idea\.[a-z]+$/.test(f.file)) leftovers.push(f.file);
+    else if (f.added.some((l) => /data-idea|liveframe:idea|__liveframeIdea|liveframe\.idea/.test(l))) leftovers.push(f.file);
+  }
+  if (leftovers.length) results.push({ label: "One idea left", status: "fail", detail: "The design still has ideas. Tell Claude which one wins: it keeps that one and takes the others and the switcher out.", items: [...new Set(leftovers)] });
+  else results.push({ label: "One idea left", status: "pass", detail: "No ideas left to choose between." });
+
   // 2. Up to date with the app.
   const head = await appHead();
   if (!meta.base || meta.base === head) results.push({ label: "Up to date with the app", status: "pass", detail: `Made on ${p.name}'s latest.` });

@@ -29,6 +29,7 @@ import { profile, fill } from "./profile.mjs";
 import { startProxy } from "./proxy.mjs";
 import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
+import { readIdeas } from "./ideas.mjs";
 
 const ID = /^[a-z0-9][a-z0-9-]{0,80}$/;
 const KIT = path.join(ROOT, "kit");
@@ -115,11 +116,12 @@ export async function summary(id) {
     pr: meta.pr ?? null,
     archivedAt: meta.archivedAt ?? null,
     base: meta.base ?? null,
+    ideas: meta.ideas ?? null,
     screens: screensOf(id),
     versions,
     latestVersion: last,
     changed: patch.trim().length > 0,
-    unpublished: !last || last.patch !== patchHash(patch) || last.screens?.length !== screensOf(id).length,
+    unpublished: !last || last.patch !== patchHash(patch) || new Set((last.screens ?? []).map((x) => x.page)).size !== screensOf(id).length,
     savedAt: (await lastSaveAt(id)) ?? meta.createdAt ?? null,
   };
 }
@@ -403,7 +405,15 @@ export async function save(id) {
   const committed = await inOrder(async () => {
     fs.writeFileSync(path.join(projectDir(id), "changes.patch"), patch);
     if (fs.existsSync(journal)) fs.copyFileSync(journal, path.join(projectDir(id), "journal.md"));
-    return commitPaths([rel(id, "changes.patch"), rel(id, "journal.md")], `Save: ${meta.title || id}`);
+    // The design's ideas, if it has any, so the canvas and Publish know them on any Mac.
+    const m = metaOf(id);
+    const ideas = readIdeas(folderOf(id));
+    if (JSON.stringify(m.ideas ?? null) !== JSON.stringify(ideas)) {
+      if (ideas) m.ideas = ideas;
+      else delete m.ideas;
+      writeMeta(id, m);
+    }
+    return commitPaths([rel(id, "changes.patch"), rel(id, "journal.md"), rel(id, "project.json")], `Save: ${meta.title || id}`);
   });
   if (committed) {
     pushSoon();
@@ -494,7 +504,7 @@ async function start(s) {
     const env = Object.fromEntries(Object.entries(p.env).map(([k, v]) => [k, fill(v, { port: ports.app })]));
     spawnLogged(s, cmd.startsWith(".") || cmd.includes("/") ? path.resolve(dir, cmd) : cmd, args, dir, { PORT: String(ports.app), NEXT_TELEMETRY_DISABLED: "1", ...env });
   }
-  if (!s.proxy && !(await portOpen(ports.proxy))) s.proxy = await startProxy({ port: ports.proxy, appPort: ports.app, cookie: p.signIn.cookie, touch: () => touch(id) });
+  if (!s.proxy && !(await portOpen(ports.proxy))) s.proxy = await startProxy({ port: ports.proxy, appPort: ports.app, cookie: p.signIn.cookie, folder: dir, touch: () => touch(id) });
 
   // Ready once the app's ready page answers (the first compile takes a while).
   const deadline = Date.now() + 6 * 60_000;

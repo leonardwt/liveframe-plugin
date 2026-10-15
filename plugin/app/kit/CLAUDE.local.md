@@ -27,6 +27,13 @@ of the app where everything you change is the design. Liveframe (the designer's 
   design onto the app's latest and sort out the clash, keeping what the design meant), then tell the
   designer in a sentence what changed in the app and how the design kept up.
 
+## Ideas side by side
+
+When the designer wants variants, a few ideas or options to compare, use the **variants** skill
+(`/liveframe:variants`): ideas live behind a switcher Liveframe draws over the app, and the canvas
+shows a row per idea. Never make a separate page for an idea (like `/home-dark`): an idea is the same
+page, switched.
+
 ## Seeing it
 
 - The app runs at {APP_URL}, already signed in. Liveframe starts it; it reloads as you change code.

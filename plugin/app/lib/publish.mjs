@@ -13,31 +13,46 @@ import { inOrder, commitPaths, pushNow, git } from "./git.mjs";
 import { profile } from "./profile.mjs";
 import { checkId, metaOf, save, summary, versionsOf, patchOf, patchHash, whenReady, statusOf, screensOf } from "./designs.mjs";
 import { snapshot } from "./snapshot.mjs";
-import { takePicture } from "./pictures.mjs";
+import { takePicture, withIdea } from "./pictures.mjs";
+import { optionsOf } from "./ideas.mjs";
 import { writeSite, sitePage, esc } from "./site.mjs";
 import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
 
 let publishing = new Set();
 
-/** The small bar on every saved screen: back to the version, and the other screens. */
-function screenBar(title, n, name, screens, i) {
-  const prev = screens[i - 1];
-  const next = screens[i + 1];
+/**
+ * The small bar on every saved screen: back to the version, the other screens, and (with ideas) the
+ * same screen on the other ideas. `shots`: this idea's screens; `others`: [{ name, file, on }].
+ */
+function screenBar(title, n, shots, i, others) {
+  const prev = shots[i - 1];
+  const next = shots[i + 1];
   const a = "all:unset;cursor:pointer;color:#fff;opacity:.9;padding:0 6px";
+  const sep = `<span style="opacity:.4">|</span>`;
+  const ideas = others.length
+    ? `${sep}${others.map((o) => (o.on ? `<span style="padding:3px 8px;border-radius:999px;background:#3d5bff">${esc(o.name)}</span>` : `<a style="${a}" href="${esc(o.file)}">${esc(o.name)}</a>`)).join("")}`
+    : "";
   return `<div style="all:initial;position:fixed;left:16px;bottom:16px;z-index:2147483647;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:rgba(22,24,29,.88);color:#fff;font:500 12px/1.2 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2)">
-<a style="${a}" href="index.html">${esc(title)} · v${n}</a><span style="opacity:.4">|</span>
+<a style="${a}" href="index.html">${esc(title)} · v${n}</a>${sep}
 ${prev ? `<a style="${a}" href="${esc(prev.file)}" title="${esc(prev.name)}">‹</a>` : `<span style="opacity:.3;padding:0 6px">‹</span>`}
-<span style="padding:0 2px">${esc(screens[i].name)} · ${i + 1} of ${screens.length}</span>
+<span style="padding:0 2px">${esc(shots[i].name)} · ${i + 1} of ${shots.length}</span>
 ${next ? `<a style="${a}" href="${esc(next.file)}" title="${esc(next.name)}">›</a>` : `<span style="opacity:.3;padding:0 6px">›</span>`}
+${ideas}
 </div>`;
 }
 
 function versionPage(id, v, title) {
   const here = `projects/${id}/v${v.n}/index.html`;
+  const cards = (list) => `<ul class="screens">${list.map((s) => `<li><a class="card" href="${esc(s.file)}"><div class="card__cover">${s.picture ? `<img src="${esc(s.picture)}" alt="">` : ""}</div><div class="card__body"><strong>${esc(s.name)}</strong><span>${esc(s.route)}</span></div></a></li>`).join("")}</ul>`;
+  const groups = v.ideas
+    ? [{ id: "before", name: "Before", note: "The app as it is" }, ...v.ideas]
+        .map((o) => `<h2 class="h2">${esc(o.name)}${o.note ? ` · <span class="muted">${esc(o.note)}</span>` : ""}</h2>${cards(v.screens.filter((s) => s.idea === o.id))}`)
+        .join("\n")
+    : cards(v.screens);
   const body = `<h1>${esc(title)} · v${v.n}</h1>
-<p class="lead">${esc(v.name)} · published ${esc(new Date(v.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }))}${v.designer ? ` by ${esc(v.designer)}` : ""}</p>
-<ul class="screens">${v.screens.map((s) => `<li><a class="card" href="${esc(s.file)}"><div class="card__cover">${s.picture ? `<img src="${esc(s.picture)}" alt="">` : ""}</div><div class="card__body"><strong>${esc(s.name)}</strong><span>${esc(s.route)}</span></div></a></li>`).join("")}</ul>`;
+<p class="lead">${esc(v.name)} · published ${esc(new Date(v.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }))}${v.designer ? ` by ${esc(v.designer)}` : ""}${v.ideas ? ` · ${v.ideas.length + 1} options to compare` : ""}</p>
+${groups}`;
   return sitePage(here, { title: `${title} · v${v.n}`, crumbs: [[`projects/${id}/index.html`, title], [null, `v${v.n}`]], body });
 }
 
@@ -59,17 +74,27 @@ export async function publish(id, name) {
     const n = (versionsOf(id).at(-1)?.n ?? 0) + 1;
     const label = String(name ?? "").trim().slice(0, 120) || (n === 1 ? "First look" : `Version ${n}`);
     const dir = `projects/${id}/v${n}`;
-    const list = screens.map((sc) => ({ page: sc.page, name: sc.name, route: sc.route, file: `${sc.page}.html`, picture: `${sc.page}.jpg` }));
-    const routes = Object.fromEntries(list.map((sc) => [sc.route, sc.file]));
+    // Each screen; with ideas, each screen on each idea ("Before" first).
+    const ideas = metaOf(id).ideas ?? null;
+    const options = optionsOf(ideas);
+    const list = options.length
+      ? options.flatMap((o) => screens.map((sc) => ({ page: sc.page, key: `${sc.page}~${o.id}`, name: sc.name, route: sc.route, idea: o.id, ideaName: o.name })))
+      : screens.map((sc) => ({ page: sc.page, key: sc.page, name: sc.name, route: sc.route, idea: null }));
+    for (const sc of list) Object.assign(sc, { file: `${sc.key}.html`, picture: `${sc.key}.jpg` });
     const url = statusOf(id).url;
     notify({ type: "publishing", project: id, done: 0, total: list.length });
-    for (const [i, sc] of list.entries()) {
-      await snapshot(url + sc.route, `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, label, list, i) });
-      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), await takePicture(url + sc.route, 1440, 900));
-      notify({ type: "publishing", project: id, done: i + 1, total: list.length });
+    for (const [k, sc] of list.entries()) {
+      const same = list.filter((x) => x.idea === sc.idea);
+      const i = same.indexOf(sc);
+      const routes = Object.fromEntries(same.map((x) => [x.route, x.file]));
+      const others = options.map((o) => ({ name: o.name, file: `${sc.page}~${o.id}.html`, on: o.id === sc.idea }));
+      const at = url + withIdea(sc.route, sc.idea);
+      await snapshot(at, `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, same, i, others) });
+      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), await takePicture(at, 1440, 900));
+      notify({ type: "publishing", project: id, done: k + 1, total: list.length });
     }
     const designer = (await git(["config", "user.name"])).stdout.trim() || null;
-    const v = { n, name: label, at: new Date().toISOString(), designer, base: meta.base, patch: patchHash(patchOf(id)), screens: list };
+    const v = { n, name: label, at: new Date().toISOString(), designer, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "version.json"), JSON.stringify(v, null, 2) + "\n");
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "index.html"), versionPage(id, v, meta.title || id));
     await inOrder(async () => {

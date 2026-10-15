@@ -105,7 +105,7 @@ const routes = [
   // A picture of a design's screen (served with the site, on 127.0.0.1).
   ["GET", /^\/view\/pictures\/([^/]+)\/([^/@]+)@(\d+)x(\d+)\.jpg$/, ([id, page, w, h], req, res) => {
     checkId(id);
-    const file = /^[\w.-]+$/.test(page) && sizeOk(Number(w), Number(h)) ? pictureFile(id, page, Number(w), Number(h)) : null;
+    const file = /^[\w.~-]+$/.test(page) && sizeOk(Number(w), Number(h)) ? pictureFile(id, page, Number(w), Number(h)) : null;
     if (!file) throw new HttpError(404, "not_found", "There's no picture of that screen yet.");
     const body = fs.readFileSync(file);
     res.writeHead(200, { "content-type": "image/jpeg", "content-length": body.length, "cache-control": "public, max-age=31536000, immutable" });

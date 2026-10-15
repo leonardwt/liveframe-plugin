@@ -59,7 +59,7 @@ function designPage(d) {
 ${d.brief ? `<p class="lead">${esc(d.brief)}</p>` : ""}
 ${ready}
 <h2 class="h2">Versions</h2>
-${versions.length ? `<ul class="list">${versions.map((v) => `<li><a href="v${v.n}/index.html"><strong>v${v.n} · ${esc(v.name)}</strong><span>${esc(day(v.at))} · ${v.screens?.length ?? 0} screen${v.screens?.length === 1 ? "" : "s"}</span></a></li>`).join("")}</ul>` : `<p class="muted">Nothing published yet.</p>`}`;
+${versions.length ? `<ul class="list">${versions.map((v) => { const pages = new Set((v.screens ?? []).map((s) => s.page)).size; return `<li><a href="v${v.n}/index.html"><strong>v${v.n} · ${esc(v.name)}</strong><span>${esc(day(v.at))} · ${pages} screen${pages === 1 ? "" : "s"}${v.ideas ? ` · ${v.ideas.length + 1} options` : ""}</span></a></li>`; }).join("")}</ul>` : `<p class="muted">Nothing published yet.</p>`}`;
   return [here, sitePage(here, { title: d.title, crumbs: [[null, d.title]], body })];
 }
 
@@ -70,7 +70,8 @@ function homePage(designs) {
   const done = shown.filter((d) => d.status === "archived");
   const card = (d) => {
     const v = d.latestVersion;
-    const cover = v?.screens?.[0]?.picture ? `<img src="projects/${esc(d.id)}/v${v.n}/${esc(v.screens[0].picture)}" alt="">` : "";
+    const shot = v?.screens?.find((s) => s.idea && s.idea !== "before") ?? v?.screens?.[0];
+    const cover = shot?.picture ? `<img src="projects/${esc(d.id)}/v${v.n}/${esc(shot.picture)}" alt="">` : "";
     return `<li><a class="card" href="projects/${esc(d.id)}/index.html"><div class="card__cover">${cover}</div><div class="card__body"><strong>${esc(d.title)}</strong>${statusChip(d)}<span>v${v.n} · ${esc(v.name)} · ${esc(day(v.at))}</span></div></a></li>`;
   };
   const body = `<h1>${esc(profile().name)} designs</h1>
