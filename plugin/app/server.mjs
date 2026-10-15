@@ -9,7 +9,7 @@ import path from "node:path";
 import { PORT, DESIGN_REPO, APP_REPO, ROOT } from "./lib/config.mjs";
 import { HttpError, checkCaller, sendJson, readBody, match, TYPES, APP_HOST, PAGES_HOST } from "./lib/http.mjs";
 import { profile, hasProfile } from "./lib/profile.mjs";
-import { listDesigns, summary, createDesign, copyDesign, mustBeMine, addScreen, rename, checkId, ensureFolder, ensureRunning, statusOf, touch, stopAllApps, stopWatching, folderOf } from "./lib/designs.mjs";
+import { listDesigns, summary, createDesign, copyDesign, mustBeMine, addScreen, setCanvas, rename, checkId, ensureFolder, ensureRunning, statusOf, touch, stopAllApps, stopWatching, folderOf } from "./lib/designs.mjs";
 import { whoAmI } from "./lib/identity.mjs";
 import { updateState, startCheckingForUpdates } from "./lib/updates.mjs";
 import { openClaude } from "./lib/claude.mjs";
@@ -101,6 +101,13 @@ const routes = [
     await mustBeMine(id);
     const body = await readBody(req);
     sendJson(res, 201, await addScreen(id, body.name, body.route));
+  }],
+  // The canvas: screens kept, where they sit, the arrows between them (Liveframe's page).
+  ["POST", /^\/api\/projects\/([^/]+)\/canvas$/, async ([id], req, res) => {
+    checkId(id);
+    await mustBeMine(id);
+    const body = await readBody(req);
+    sendJson(res, 200, await setCanvas(id, body));
   }],
   ["POST", /^\/api\/projects\/([^/]+)\/rename$/, async ([id], req, res) => {
     checkId(id);

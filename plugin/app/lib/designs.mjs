@@ -124,6 +124,8 @@ export async function summary(id) {
     base: meta.base ?? null,
     ideas: meta.ideas ?? null,
     screens: screensOf(id),
+    layout: meta.layout ?? {},
+    links: Array.isArray(meta.links) ? meta.links : [],
     versions,
     latestVersion: last,
     changed: patch.trim().length > 0,
@@ -246,6 +248,43 @@ export async function addScreen(id, name, route) {
   pushSoon();
   notify({ type: "changed", project: id });
   return { page, name: title, route: where };
+}
+
+/**
+ * The canvas: which screens it has, where they were moved to, and the arrows between them. Any of
+ * the three (undo sends the earlier ones back). Removing a screen also removes its place and arrows.
+ */
+export async function setCanvas(id, { screens, layout, links }) {
+  checkId(id);
+  const meta = metaOf(id);
+  const changed = [];
+  if (screens !== undefined) {
+    if (!Array.isArray(screens) || screens.some((s) => !s || typeof s.page !== "string" || typeof s.route !== "string" || !/^\//.test(s.route))) throw new HttpError(400, "bad_screens", "Screens are { page, name, route }.");
+    const before = new Set((meta.screens ?? []).map((s) => s.page));
+    meta.screens = screens.map((s) => ({ page: s.page, name: String(s.name ?? s.page).slice(0, 80), route: s.route }));
+    const gone = [...before].filter((pg) => !meta.screens.some((s) => s.page === pg));
+    if (gone.length) changed.push(`removed ${gone.join(", ")}`);
+    else if (meta.screens.length > before.size) changed.push("screens back");
+  }
+  if (layout !== undefined) {
+    if (!layout || typeof layout !== "object") throw new HttpError(400, "bad_layout", "The layout is { page: { x, y } }.");
+    meta.layout = Object.fromEntries(Object.entries(layout).filter(([, p]) => Number.isFinite(p?.x) && Number.isFinite(p?.y)).map(([pg, p]) => [pg, { x: Math.round(p.x), y: Math.round(p.y) }]));
+    changed.push(Object.keys(meta.layout).length ? "moved screens" : "tidied up");
+  }
+  if (links !== undefined) {
+    if (!Array.isArray(links)) throw new HttpError(400, "bad_links", "Arrows are [{ from, to }].");
+    meta.links = links.filter((l) => typeof l?.from === "string" && typeof l?.to === "string" && l.from !== l.to).map((l) => ({ from: l.from, to: l.to }));
+    changed.push("arrows");
+  }
+  // Nothing left pointing at a screen that's gone.
+  const pages = new Set((meta.screens ?? []).map((s) => s.page));
+  if (meta.layout) meta.layout = Object.fromEntries(Object.entries(meta.layout).filter(([pg]) => pages.has(pg)));
+  if (meta.links) meta.links = meta.links.filter((l) => pages.has(l.from) && pages.has(l.to));
+  writeMeta(id, meta);
+  await inOrder(() => commitPaths([rel(id, "project.json")], `Canvas: ${meta.title || id} (${changed.join("; ") || "no change"})`));
+  pushSoon();
+  notify({ type: "changed", project: id });
+  return summary(id);
 }
 
 /** Rename the design or one of its screens. */

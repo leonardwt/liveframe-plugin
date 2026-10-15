@@ -2,6 +2,19 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.5.0
+
+- **Arrange the canvas like FigJam** (your own designs):
+  - **Select**: drag on empty canvas for a selection box; Shift-click a screen's name to add it.
+  - **Delete** (or Backspace) takes the selected screens off the canvas (not out of the app).
+    **⌘Z** or **Undo** brings them back.
+  - **Move**: drag a screen. With ideas, it moves in every idea row. **Tidy up** (toolbar) puts
+    everything back in rows.
+  - **Connect**: hover a screen, drag from one of its four dots onto another screen for an arrow.
+    Click an arrow and press Delete to remove it.
+  - **Click a screen still opens it** in a new tab. Move around with the trackpad, or space + drag.
+- Published versions and the online site keep your layout and arrows (look only).
+
 ## 0.4.2
 
 - **Liveframe tells you when there's an update**: an "Update available" pill in the top bar. Click it

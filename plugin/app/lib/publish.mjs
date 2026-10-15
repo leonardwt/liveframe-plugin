@@ -90,7 +90,7 @@ export async function publish(id, name) {
       while (queue.length) await one(queue.shift());
     }));
     const me = await whoAmI();
-    const v = { n, name: label, at: new Date().toISOString(), designer: me.name, designerLogin: me.login, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
+    const v = { n, name: label, at: new Date().toISOString(), designer: me.name, designerLogin: me.login, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, layout: metaOf(id).layout ?? {}, links: metaOf(id).links ?? [], screens: list };
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "version.json"), JSON.stringify(v, null, 2) + "\n");
     await inOrder(async () => {
       await writeSite();

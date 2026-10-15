@@ -144,7 +144,6 @@ a { color: inherit; }
 .fcanvas.is-dragging .fstep { pointer-events: none; }
 .fworld { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .farrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.farrows path { stroke: #5d5d66; stroke-width: 1.5; fill: none; }
 .flabel { position: absolute; left: 0; top: 0; display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
 .flabel strong { font-size: 15px; font-weight: 500; }
 .flabel span { color: var(--muted); font-size: 12px; }
@@ -286,3 +285,34 @@ a.btn[aria-disabled="true"] { pointer-events: none; opacity: 0.5; }
 .btn--update { border-color: rgb(61 91 255 / 0.45); color: var(--blue-text); }
 .btn--update:hover { border-color: var(--blue); }
 .dot--update { background: var(--blue); }
+
+/* Canvas editing: selection, moving, connecting (flow.js). */
+.fcanvas--edit { cursor: default; }
+.fcanvas--edit.is-space, .fcanvas.is-panning { cursor: grabbing; }
+.fcanvas.is-space .fstep, .fcanvas.is-panning .fstep { pointer-events: none; }
+.fcanvas.is-moving { cursor: grabbing; }
+.fcanvas.is-moving .fstep__frame, .fcanvas.is-linking .fstep__frame { pointer-events: none; }
+.fcanvas--edit .fstep__title { cursor: pointer; }
+.fstep.is-selected .fstep__frame { box-shadow: 0 0 0 calc(2px * var(--inv, 1)) var(--blue), 0 8px 24px rgb(0 0 0 / 0.35); }
+.fstep.is-selected .fstep__title { color: var(--blue-text); }
+.fstep.is-target .fstep__frame { box-shadow: 0 0 0 calc(3px * var(--inv, 1)) var(--blue), 0 8px 24px rgb(0 0 0 / 0.35); }
+.fmarquee { position: absolute; z-index: 5; border: 1px solid var(--blue); background: rgb(61 91 255 / 0.12); pointer-events: none; }
+.fmarquee[hidden] { display: none; }
+.fhandle { position: absolute; z-index: 3; width: calc(12px * var(--inv, 1)); height: calc(12px * var(--inv, 1)); margin: calc(-6px * var(--inv, 1)) 0 0 calc(-6px * var(--inv, 1)); border-radius: 50%; background: #fff; border: calc(2px * var(--inv, 1)) solid var(--blue); cursor: crosshair; opacity: 0; transition: opacity 0.12s; }
+.fstep:hover .fhandle, .fcanvas.is-linking .fhandle { opacity: 1; }
+.fcanvas.is-moving .fhandle, .fcanvas.is-space .fhandle { opacity: 0; }
+.fhandle--top { left: 50%; top: 37px; }
+.fhandle--bottom { left: 50%; top: calc(37px + var(--fh, 0px)); }
+.fhandle--left { left: 0; top: calc(37px + var(--fh, 0px) / 2); }
+.fhandle--right { left: 100%; top: calc(37px + var(--fh, 0px) / 2); }
+.farrows { pointer-events: none; z-index: 2; }
+.flink { pointer-events: auto; }
+.flink__hit { stroke: transparent; stroke-width: 14; fill: none; cursor: pointer; }
+.flink__line { stroke: #6b6b75; stroke-width: calc(2px * var(--inv, 1)); fill: none; pointer-events: none; }
+.flink:hover .flink__line { stroke: #9a9aa3; }
+.flink.is-selected .flink__line { stroke: var(--blue); }
+.flink__ghost { stroke: var(--blue); stroke-width: calc(2px * var(--inv, 1)); fill: none; stroke-dasharray: 6 5; }
+.flink path, .flink__ghost { fill: none; }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast__act { border: 0; background: transparent; color: var(--blue-text); font: 600 13px/1 var(--font); cursor: pointer; padding: 4px 2px; }
+.toast__act:hover { text-decoration: underline; }

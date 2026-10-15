@@ -40,6 +40,7 @@ function icon(name, size = 16) {
     components: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     palette: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.2" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="7.8" r="1.2" fill="currentColor" stroke="none"/>',
     external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    tidy: '<rect x="3" y="5" width="7" height="6" rx="1.5"/><rect x="14" y="5" width="7" height="6" rx="1.5"/><rect x="3" y="15" width="7" height="4" rx="1.5"/><rect x="14" y="15" width="7" height="4" rx="1.5"/>',
   };
   return h("span", { "aria-hidden": "true", style: "display:inline-flex", html: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>` });
 }
@@ -80,9 +81,10 @@ function ago(iso) {
 }
 
 let toastTimer;
-function toast(text, error = false, ms = 3600) {
+function toast(text, error = false, ms = 3600, action = null) {
   document.querySelector(".toast")?.remove();
-  const el = h("div", { class: `toast${error ? " toast--error" : ""}`, role: "status" }, text);
+  const el = h("div", { class: `toast${error ? " toast--error" : ""}`, role: "status" }, text,
+    action ? h("button", { type: "button", class: "toast__act", onclick: () => (el.remove(), action.run()) }, action.label) : null);
   document.body.append(el);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.remove(), ms);
@@ -341,14 +343,14 @@ async function design(id, version = null) {
   const pictureOf = (c) => {
     const v = shown();
     if (v) {
-      const s = v.screens.find((x) => (x.key ?? x.page) === c.page);
+      const s = v.screens.find((x) => (x.key ?? x.page) === c.key);
       const file = state.device === "phone" ? s?.phonePicture ?? s?.picture : s?.picture;
       return file ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(file)}` : null;
     }
     const { width, height } = viewportOf();
     const p = state.pictures;
-    const stamp = p?.size === `${width}x${height}` ? p.stamps[c.page] : null;
-    return stamp ? `http://127.0.0.1:${location.port}/view/pictures/${enc}/${encodeURIComponent(c.page)}@${width}x${height}.jpg?v=${stamp}` : null;
+    const stamp = p?.size === `${width}x${height}` ? p.stamps[c.key] : null;
+    return stamp ? `http://127.0.0.1:${location.port}/view/pictures/${enc}/${encodeURIComponent(c.key)}@${width}x${height}.jpg?v=${stamp}` : null;
   };
 
   // The canvas: the design's screens; with ideas, a row per idea ("Before" first), side by side.
@@ -361,7 +363,8 @@ async function design(id, version = null) {
     const withIdea = (route, idea) => (idea ? `${route}${route.includes("?") ? "&" : "?"}idea=${encodeURIComponent(idea)}` : route);
     const published = (file) => (v ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(file)}` : "#");
     const card = (s, idea) => ({
-      page: idea ? `${s.page}~${idea}` : s.page,
+      page: s.page,
+      key: idea ? `${s.page}~${idea}` : s.page,
       title: s.name,
       rename: live ? { page: s.page } : null,
       note: s.route,
@@ -379,7 +382,7 @@ async function design(id, version = null) {
 
   // A published version's canvas: its screens; with ideas, a row per idea ("Before" first).
   function versionGroups(v) {
-    const card = (s) => ({ page: s.key ?? s.page, title: s.name, note: s.route, thumb: "about:blank", href: `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(s.file)}` });
+    const card = (s) => ({ page: s.page, key: s.key ?? s.page, title: s.name, note: s.route, thumb: "about:blank", href: `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(s.file)}` });
     if (!v.ideas) return [{ title: "Screens", sub: plural(v.screens.length, "screen"), rows: [{ cards: v.screens.map(card) }] }];
     const options = [{ id: "before", name: "Before", note: "The app as it is" }, ...v.ideas];
     const pages = new Set(v.screens.map((s) => s.page)).size;
@@ -408,7 +411,9 @@ async function design(id, version = null) {
         h("span", null, d.status === "designing" ? "Design with Claude and tell it which page you want to change. It shows here as soon as Claude adds it." : "This design has no screens.")), toolbar());
       return;
     }
-    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device, state.ref]);
+    const v = shown();
+    const canEdit = !SITE && d.mine && d.status === "designing" && !v;
+    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device, state.ref, v ? [v.layout, v.links] : [d.layout, d.links]]);
     if (keep && state.canvas?.shape === shape) return;
     const camera = keep ? state.canvas?.camera() : null;
     state.canvas?.destroy();
@@ -419,12 +424,24 @@ async function design(id, version = null) {
       camera,
       pictures: pictureOf,
       appStatus: () => (!shown() && state.d.status === "designing" && state.d.app && state.d.app.state !== "ready" ? state.d.app : null),
+      layout: (v ? v.layout : d.layout) ?? {},
+      links: (v ? v.links : d.links) ?? [],
       onOpen: (c, e) => {
         if (!phone || e.metaKey || e.ctrlKey || e.shiftKey) return;
         e.preventDefault();
         window.open(c.href, "_blank", "popup,noopener,width=390,height=844");
       },
-      onRename: SITE ? null : renameIt,
+      onRename: canEdit ? renameIt : null,
+      edit: canEdit ? {
+        onLayout: (layout) => changeCanvas({ layout }),
+        onLinks: (links) => changeCanvas({ links }),
+        onDelete: (pages) => {
+          const gone = state.d.screens.filter((s) => pages.includes(s.page));
+          changeCanvas({ screens: state.d.screens.filter((s) => !pages.includes(s.page)) });
+          toast(`Removed ${gone.length === 1 ? `“${gone[0].name}”` : plural(gone.length, "screen")} from the canvas.`, false, 6000, { label: "Undo", run: undo });
+        },
+        onUndo: undo,
+      } : null,
       onEditEnd: () => state.later && !state.canvas?.editing() && ((state.later = false), refresh()),
     });
     state.canvas.shape = shape;
@@ -444,8 +461,35 @@ async function design(id, version = null) {
           return b;
         })),
       h("span", { class: "ftool__sep", "aria-hidden": "true" }),
+      !SITE && state.d.mine && state.d.status === "designing" && !shown() && Object.keys(state.d.layout ?? {}).length
+        ? tool("Tidy up", "Tidy up: put the screens back in rows", () => changeCanvas({ layout: {} }), icon("tidy", 16))
+        : null,
       link("components", "Design system (opens a new tab)", "Design system · opens a new tab", "components"),
       link("tokens", "Tokens (opens a new tab)", "Tokens · opens a new tab", "palette"));
+  }
+
+  // The canvas's screens, places and arrows: changed here at once, saved behind, undoable (⌘Z).
+  state.undo = [];
+  const snapshot = () => ({ screens: state.d.screens, layout: state.d.layout, links: state.d.links });
+  async function changeCanvas(change, { remember = true } = {}) {
+    if (remember) state.undo = [...state.undo.slice(-29), snapshot()];
+    if (change.screens) {
+      const pages = new Set(change.screens.map((s) => s.page));
+      state.d.layout = Object.fromEntries(Object.entries(change.layout ?? state.d.layout ?? {}).filter(([pg]) => pages.has(pg)));
+      state.d.links = (change.links ?? state.d.links ?? []).filter((l) => pages.has(l.from) && pages.has(l.to));
+    }
+    Object.assign(state.d, change);
+    drawStage({ keep: true });
+    try {
+      await api(`/api/projects/${enc}/canvas`, { body: change });
+    } catch (err) {
+      toast(err.message, true);
+      refresh();
+    }
+  }
+  function undo() {
+    const last = state.undo.pop();
+    if (last) changeCanvas(last, { remember: false });
   }
 
   async function renameIt(what, name) {
