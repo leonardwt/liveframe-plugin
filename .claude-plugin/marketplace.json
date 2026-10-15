@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "liveframe",
+  "description": "Liveframe: designers change an app's real code with Claude, on their own Mac.",
+  "owner": { "name": "Leonard Goh" },
+  "plugins": [
+    {
+      "name": "liveframe",
+      "description": "Design in the app's real code with Claude: a design repo, a design system made from the code, versions published for review, and a handoff engineers can merge.",
+      "source": "./plugin"
+    }
+  ]
+}

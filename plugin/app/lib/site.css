@@ -1,0 +1,40 @@
+/* The online pages' look (Liveframe's, not the app's). */
+:root { --ink: #16181d; --muted: #6b7180; --line: #e6e8ec; --bg: #f6f7f9; --accent: #3d5bff; --ok: #16804a; color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+a { color: inherit; }
+.top { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--line); }
+.trail { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.trail a { text-decoration: none; color: var(--muted); }
+.trail a:hover { color: var(--ink); }
+.trail span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sep { color: #c3c7d0; }
+.ds { color: var(--accent); text-decoration: none; font-weight: 500; white-space: nowrap; }
+.main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.01em; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.h2 { margin: 32px 0 12px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.lead { margin: 0 0 24px; color: var(--muted); max-width: 70ch; }
+.muted { color: var(--muted); }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #e9edff; color: var(--accent); }
+.chip--ready { background: #e2f4ea; color: var(--ok); }
+.chip--done { background: #eceef2; color: var(--muted); }
+.list { list-style: none; margin: 0; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.list li + li { border-top: 1px solid var(--line); }
+.list a { display: flex; justify-content: space-between; gap: 16px; padding: 14px 16px; text-decoration: none; }
+.list a:hover { background: #fafbfc; }
+.list span { color: var(--muted); }
+.cards, .screens { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.card { display: block; text-decoration: none; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.card:hover { border-color: #cfd3db; }
+.card__cover { aspect-ratio: 16 / 10; background: #eef0f3; overflow: hidden; }
+.card__cover img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.card__body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 12px 14px; }
+.card__body strong { flex: 1 1 100%; }
+.card__body span:last-child { color: var(--muted); font-size: 12px; flex: 1 1 100%; }
+.note { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 10px; padding: 14px 16px; margin: 0 0 24px; }
+.note h2 { margin: 0 0 4px; font-size: 14px; }
+.note p { margin: 0; color: var(--muted); }
+.handoff { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; max-width: 80ch; }
+.handoff pre { white-space: pre-wrap; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0; }
+@media (max-width: 600px) { .main { padding: 24px 16px 60px; } .top { padding: 12px 16px; } }

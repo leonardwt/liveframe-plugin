@@ -1,0 +1,22 @@
+{
+  "name": "Lumen Books",
+  "repo": "https://github.com/lumen/lumen-books",
+  "branch": "main",
+  "site": "https://lumen-designs.pages.dev",
+  "install": ["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"],
+  "run": ["node_modules/.bin/next", "dev", "-H", "127.0.0.1", "-p", "{port}"],
+  "env": { "NEXT_PUBLIC_API_MOCKS": "1" },
+  "ready": "/",
+  "signIn": { "cookie": "lumen_session=demo-reader" },
+  "frontend": ["app/", "components/", "styles/"],
+  "backend": ["app/api/", "server/", "middleware.ts"],
+  "pages": [
+    { "name": "Home", "route": "/" },
+    { "name": "Library", "route": "/library" },
+    { "name": "Book", "route": "/books/the-long-way-home" },
+    { "name": "Checkout", "route": "/checkout" },
+    { "name": "Sign in", "route": "/sign-in" }
+  ],
+  "designSystem": { "tokens": ["styles/tokens.css"], "components": ["components/ui"] },
+  "notes": "Next.js (App Router) with CSS Modules; every value comes from styles/tokens.css and every control from components/ui. Data comes from the app's built-in mocks (NEXT_PUBLIC_API_MOCKS=1); the demo-reader account has a full library. Other states: the new-reader account has an empty library."
+}
