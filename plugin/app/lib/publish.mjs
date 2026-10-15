@@ -16,6 +16,7 @@ import { checkId, metaOf, save, summary, versionsOf, patchOf, patchHash, whenRea
 import { snapshot } from "./snapshot.mjs";
 import { takePicture, withIdea } from "./pictures.mjs";
 import { optionsOf } from "./ideas.mjs";
+import { whoAmI } from "./identity.mjs";
 import { writeSite, esc } from "./site.mjs";
 import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
@@ -81,8 +82,8 @@ export async function publish(id, name) {
       fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.phonePicture), await takePicture(at, 390, 844));
       notify({ type: "publishing", project: id, done: k + 1, total: list.length });
     }
-    const designer = (await git(["config", "user.name"])).stdout.trim() || null;
-    const v = { n, name: label, at: new Date().toISOString(), designer, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
+    const me = await whoAmI();
+    const v = { n, name: label, at: new Date().toISOString(), designer: me.name, designerLogin: me.login, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "version.json"), JSON.stringify(v, null, 2) + "\n");
     await inOrder(async () => {
       await writeSite();

@@ -193,7 +193,7 @@ function card(d) {
       h("div", { class: "dcard__title" }, d.title)),
     h("div", { class: "dcard__foot" },
       h("div", { class: "dcard__brief" }, d.brief || `${plural(d.screens.length, "screen")}`),
-      h("div", { class: "dcard__meta" }, d.status === "archived" ? `Built ${ago(d.archivedAt)}` : SITE ? `Published ${ago(d.latestVersion?.at)}` : d.savedAt ? `Changed ${ago(d.savedAt)}` : "")));
+      h("div", { class: "dcard__meta" }, [d.designerLabel, d.status === "archived" ? `built ${ago(d.archivedAt)}` : SITE ? `published ${ago(d.latestVersion?.at)}` : d.savedAt ? `changed ${ago(d.savedAt)}` : ""].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase()))));
 }
 
 function folderName(name) {
@@ -277,8 +277,8 @@ async function design(id, version = null) {
     }
     document.title = `${state.d.title} · Liveframe`;
     const ns = state.d.versions.map((v) => v.n);
-    if (SITE || state.d.status === "archived") state.ref = ns.includes(state.ref) ? state.ref : ns.at(-1) ?? null;
-    if (!SITE && state.d.status === "designing") keepRunning();
+    if (SITE || state.d.status === "archived" || !state.d.mine) state.ref = ns.includes(state.ref) ? state.ref : ns.at(-1) ?? null;
+    if (!SITE && state.d.status === "designing" && state.d.mine) keepRunning();
     return true;
   }
 
@@ -374,6 +374,14 @@ async function design(id, version = null) {
 
   function drawStage({ keep = false } = {}) {
     const d = state.d;
+    if (!d.mine && !shown()) {
+      state.canvas?.destroy();
+      state.canvas = null;
+      stage.replaceChildren(h("div", { class: "stage__wait" },
+        h("strong", null, "Not published yet"),
+        h("span", null, `${d.designerLabel ?? "Its designer"} hasn't published this design yet. Make your own copy to see where it is and change it.`)), toolbar());
+      return;
+    }
     if (!d.screens.length && !shown()) {
       state.canvas?.destroy();
       state.canvas = null;
@@ -442,6 +450,8 @@ async function design(id, version = null) {
       parts.push(h("span", null, `Built ${ago(d.archivedAt)}. Archived: nothing changes from here on.`),
         d.latestVersion ? h("a", { href: siteLink(`projects/${enc}/v${d.latestVersion.n}/index.html`), target: "_blank", rel: "noopener" }, `v${d.latestVersion.n}`) : null,
         d.pr ? h("a", { href: d.pr, target: "_blank", rel: "noopener" }, "Pull request") : null);
+    } else if (!SITE && !d.mine) {
+      parts.push(h("span", null, `${d.designerLabel ?? "Someone else"}'s design: you can look, not change it. To work on it, make your own copy.`));
     } else if (SITE && shown()) {
       const v = shown();
       parts.push(h("span", null, `v${v.n} · ${v.name}, published ${ago(v.at)}${v.designer ? ` by ${v.designer}` : ""}.`));
@@ -471,8 +481,15 @@ async function design(id, version = null) {
         [...d.versions].reverse().map((v) => h("option", { value: v.n }, `v${v.n} · ${v.name}`)))
       : h("span", { class: "muted hide-narrow" }, "Not published yet");
 
+    // Who made it: the designer, or whoever published the version on the canvas.
+    const v = shown();
+    const by = v?.designer ? (v.designerLogin && v.designerLogin !== v.designer ? `${v.designer} (${v.designerLogin})` : v.designer) : d.designerLabel;
+    const byline = by ? h("span", { class: "muted hide-narrow" }, `by ${by}`) : null;
+
     let actions = [];
-    if (SITE) {
+    if (!SITE && !d.mine) {
+      actions.push(h("button", { type: "button", class: "btn btn--primary tip-end", "data-tip": "A design of your own that starts where this one is", onclick: () => copyIt() }, icon("claude", 14), "Make my own copy"));
+    } else if (SITE) {
       if (d.status !== "designing") actions.push(h("button", { type: "button", class: "btn btn--done", disabled: true }, icon("check", 14), d.status === "ready" ? `Ready for Development · v${d.ready.version}` : "Built"));
     } else if (live) {
       const publishTip = !d.screens.length ? "No screens yet" : !d.unpublished ? `Nothing new since v${last?.n}` : state.publishing ? "Publishing…" : null;
@@ -491,13 +508,26 @@ async function design(id, version = null) {
     bar.replaceChildren(...[
       brand(),
       h("span", { class: "crumb" }, "/"),
-      live && !SITE ? editable(h("span", { class: "bar__title" }, d.title), { onSave: async (name) => (await renameIt({ title: true }, name), (document.title = `${name} · Liveframe`)) }) : h("span", { class: "bar__title" }, d.title),
-      live && !SITE ? h("button", { type: "button", class: "btn tip-start", "data-tip": "A new Claude session for this design", onclick: () => openClaude(d.id, !d.screens.length) }, icon("claude", 14), h("span", { class: "hide-narrow" }, "Design with Claude")) : null,
+      live && !SITE && d.mine ? editable(h("span", { class: "bar__title" }, d.title), { onSave: async (name) => (await renameIt({ title: true }, name), (document.title = `${name} · Liveframe`)) }) : h("span", { class: "bar__title" }, d.title),
+      live && !SITE && d.mine ? h("button", { type: "button", class: "btn tip-start", "data-tip": "A new Claude session for this design", onclick: () => openClaude(d.id, !d.screens.length) }, icon("claude", 14), h("span", { class: "hide-narrow" }, "Design with Claude")) : null,
       versions,
+      byline,
       h("span", { class: "spacer" }),
       ...actions,
     ].filter(Boolean));
     bar.querySelector(".pop input")?.focus();
+  }
+
+  // My own copy: a new design of mine that starts where this one is; Claude opens in it.
+  async function copyIt() {
+    try {
+      const c = await api(`/api/projects/${enc}/copy`, { body: {} });
+      toast(`Made “${c.title}”, your own copy.`);
+      go(`/d/${encodeURIComponent(c.id)}`);
+      openClaude(c.id, true);
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
   function publishPop() {

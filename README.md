@@ -28,6 +28,8 @@ the design repo     ← designs (each one a change to the app, a journal, publis
    **Ideas side by side:** ask for variants ("try a dark version and a compact one") and Claude builds
    them behind a switcher Liveframe draws over the app; the canvas shows a row per idea. Tell Claude
    which one wins and it keeps that one and takes the rest out (`/liveframe:variants`).
+   **One designer per design:** someone else's design opens read-only; **Make my own copy** starts
+   yours from where theirs is.
 2. **Publish.** Saves the design's screens as plain pages for review, online a minute later. The
    online site *is* Liveframe, read-only: the same designs page and canvas, without the designer's
    buttons, showing published versions.

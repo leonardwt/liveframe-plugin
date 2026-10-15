@@ -2,6 +2,15 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.4.0
+
+- **Who made it**: every design shows its designer, with their GitHub account ("Leonard (leonardwt)"),
+  on the designs page and next to the version on the canvas, here and online. Liveframe takes it from
+  your GitHub sign-in (your git name if you're not signed in).
+- **One designer per design**: someone else's design opens read-only. **Make my own copy** starts a
+  design of yours where theirs is (same change, screens and ideas), and Claude opens in it. Theirs
+  stays theirs.
+
 ## 0.3.1
 
 - **`/liveframe:update`**: checks for a new Liveframe, tells you what's new, and updates it (and

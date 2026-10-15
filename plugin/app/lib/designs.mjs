@@ -30,6 +30,7 @@ import { startProxy } from "./proxy.mjs";
 import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
 import { readIdeas } from "./ideas.mjs";
+import { whoAmI, labelOf, isMine } from "./identity.mjs";
 
 const ID = /^[a-z0-9][a-z0-9-]{0,80}$/;
 const KIT = path.join(ROOT, "kit");
@@ -105,11 +106,16 @@ export async function summary(id) {
   const versions = versionsOf(id);
   const last = versions.at(-1) ?? null;
   const patch = patchOf(id);
+  const me = await whoAmI();
   return {
     id,
     title: meta.title || id,
     brief: meta.brief ?? "",
     designer: meta.designer ?? null,
+    designerLogin: meta.designerLogin ?? null,
+    designerLabel: labelOf(meta.designer, meta.designerLogin),
+    mine: isMine(meta, me),
+    copiedFrom: meta.copiedFrom ?? null,
     createdAt: meta.createdAt ?? null,
     status: meta.status ?? "designing",
     ready: meta.ready ?? null,
@@ -149,8 +155,8 @@ export async function createDesign(name, brief) {
   const id = folderName(title);
   if (!title || !ID.test(id)) throw new HttpError(400, "bad_name", "Give the design a name with letters or numbers.");
   if (fs.existsSync(projectDir(id))) throw new HttpError(409, "taken", `There's already a design called ${title}.`);
-  const designer = (await git(["config", "user.name"])).stdout.trim() || null;
-  const meta = { title, brief: String(brief ?? "").trim().slice(0, 2000), designer, createdAt: new Date().toISOString(), base: await appHead(), screens: [], status: "designing" };
+  const me = await whoAmI();
+  const meta = { title, brief: String(brief ?? "").trim().slice(0, 2000), designer: me.name, designerLogin: me.login, createdAt: new Date().toISOString(), base: await appHead(), screens: [], status: "designing" };
   fs.mkdirSync(projectDir(id), { recursive: true });
   writeMeta(id, meta);
   fs.writeFileSync(path.join(projectDir(id), "journal.md"), startJournal(meta));
@@ -164,7 +170,7 @@ function startJournal(meta) {
   return `# ${meta.title}
 
 **Brief:** ${meta.brief || "(not written yet: ask the designer)"}
-**Designer:** ${meta.designer || "(unknown)"}
+**Designer:** ${labelOf(meta.designer, meta.designerLogin) || "(unknown)"}${meta.copiedFrom ? `\n**Copied from:** “${meta.copiedFrom.title}” by ${meta.copiedFrom.designer || "someone"}${meta.copiedFrom.version ? ` (its v${meta.copiedFrom.version})` : " (its latest save)"}` : ""}
 
 ## Where it stands
 
@@ -178,6 +184,47 @@ Started. Nothing changed yet.
 
 - Liveframe started the design.
 `;
+}
+
+/** Only the design's designer works on it; anyone else makes their own copy. Throws for others. */
+export async function mustBeMine(id) {
+  const meta = metaOf(id);
+  if (isMine(meta, await whoAmI())) return;
+  throw new HttpError(403, "not_yours", `This is ${labelOf(meta.designer, meta.designerLogin) ?? "someone else"}'s design. Make your own copy to work on it.`);
+}
+
+/**
+ * My own copy of someone else's design: a new design that starts where theirs is (the same app
+ * commit, change, screens and ideas), with its own journal saying where it came from.
+ */
+export async function copyDesign(id, name) {
+  checkId(id);
+  const from = metaOf(id);
+  const me = await whoAmI();
+  const firstName = (me.name || me.login || "my").split(" ")[0];
+  let title = String(name ?? "").trim().slice(0, 80) || `${from.title || id} (${firstName}'s copy)`;
+  let newId = folderName(title);
+  for (let i = 2; fs.existsSync(projectDir(newId)); i++) newId = folderName(`${title} ${i}`), (title = `${String(name ?? "").trim() || `${from.title || id} (${firstName}'s copy)`} ${i}`);
+  const last = versionsOf(id).at(-1);
+  const meta = {
+    title,
+    brief: from.brief ?? "",
+    designer: me.name,
+    designerLogin: me.login,
+    createdAt: new Date().toISOString(),
+    base: from.base,
+    screens: from.screens ?? [],
+    ...(from.ideas ? { ideas: from.ideas } : {}),
+    status: "designing",
+    copiedFrom: { id, title: from.title || id, designer: labelOf(from.designer, from.designerLogin), version: last && last.patch === patchHash(patchOf(id)) ? last.n : null },
+  };
+  fs.mkdirSync(projectDir(newId), { recursive: true });
+  writeMeta(newId, meta);
+  fs.writeFileSync(path.join(projectDir(newId), "changes.patch"), patchOf(id));
+  fs.writeFileSync(path.join(projectDir(newId), "journal.md"), startJournal(meta).replace("- Liveframe started the design.", `- Liveframe started this design as a copy of “${meta.copiedFrom.title}” by ${meta.copiedFrom.designer || "someone"}: the same change, screens${from.ideas ? " and ideas" : ""}. Its journal is at projects/${id}/journal.md.`));
+  await inOrder(() => commitPaths([rel(newId)], `Copy design: ${title} (from ${from.title || id})`));
+  pushSoon();
+  return summary(newId);
 }
 
 /** Add a screen to the design's canvas: an app page by its address, named as the designer calls it. */

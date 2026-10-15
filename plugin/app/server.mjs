@@ -9,7 +9,8 @@ import path from "node:path";
 import { PORT, DESIGN_REPO, APP_REPO, ROOT } from "./lib/config.mjs";
 import { HttpError, checkCaller, sendJson, readBody, match, TYPES, APP_HOST, PAGES_HOST } from "./lib/http.mjs";
 import { profile, hasProfile } from "./lib/profile.mjs";
-import { listDesigns, summary, createDesign, addScreen, rename, checkId, ensureFolder, ensureRunning, statusOf, touch, stopAllApps, stopWatching, folderOf } from "./lib/designs.mjs";
+import { listDesigns, summary, createDesign, copyDesign, mustBeMine, addScreen, rename, checkId, ensureFolder, ensureRunning, statusOf, touch, stopAllApps, stopWatching, folderOf } from "./lib/designs.mjs";
+import { whoAmI } from "./lib/identity.mjs";
 import { openClaude } from "./lib/claude.mjs";
 import { stream, closeAll, onEvent } from "./lib/events.mjs";
 import { picturesOf, pictureFile, sizeOk, retake, stopPictures } from "./lib/pictures.mjs";
@@ -27,14 +28,16 @@ const fromButton = (req) => req.headers.origin === `http://${APP_HOST}`;
 const routes = [
   ["GET", /^\/api\/health$/, (_p, _req, res) => sendJson(res, 200, { ok: true, version: VERSION, designRepo: DESIGN_REPO, appRepo: APP_REPO })],
   // What the pages need to know: the app, where the site and the design system are, how it's keeping up.
-  ["GET", /^\/api\/settings$/, (_p, _req, res) => {
+  ["GET", /^\/api\/settings$/, async (_p, _req, res) => {
     const ds = designSystemLinks();
+    const me = await whoAmI();
     const site = `http://${PAGES_HOST}/site/`;
     sendJson(res, 200, {
       app: hasProfile() ? profile().name : null,
       online: siteUrl(),
       site,
       designSystem: ds ? { components: site + "design-system/" + ds.components, tokens: site + "design-system/" + ds.tokens, sha: ds.sha, at: ds.at } : null,
+      me: { login: me.login, name: me.name },
       keepingUp: keepingUp(),
       push: pushState(),
     });
@@ -55,10 +58,12 @@ const routes = [
     checkId(id);
     const d = await summary(id);
     if (d.status === "archived") throw new HttpError(409, "archived", "This design is archived.");
+    await mustBeMine(id);
     const body = await readBody(req);
     const pages = profile().pages.map((pg) => pg.name).join(", ");
+    const copied = d.copiedFrom ? ` It's my own copy of “${d.copiedFrom.title}” by ${d.copiedFrom.designer || "someone"}, starting where theirs is (their journal: projects/${d.copiedFrom.id}/journal.md in the design repo).` : "";
     const first = body.start
-      ? `Let's start the design “${d.title}”. ${d.brief || `Which page do you want to change? (${pages})`}`
+      ? `Let's start the design “${d.title}”.${copied} ${d.brief || `Which page do you want to change? (${pages})`}`
       : `Let's carry on with the design “${d.title}”.`;
     const folder = await ensureFolder(id);
     ensureRunning(id);
@@ -70,8 +75,9 @@ const routes = [
     touch(id);
     sendJson(res, 200, statusOf(id));
   }],
-  ["POST", /^\/api\/projects\/([^/]+)\/app$/, ([id], _req, res) => {
+  ["POST", /^\/api\/projects\/([^/]+)\/app$/, async ([id], _req, res) => {
     checkId(id);
+    await mustBeMine(id);
     ensureFolder(id).catch((e) => console.error(`[folder ${id}] ${e.message}`));
     sendJson(res, 200, ensureRunning(id));
   }],
@@ -84,21 +90,35 @@ const routes = [
   }],
   // A screen on the canvas: an app page by its address (Claude adds them as the designer names pages).
   ["POST", /^\/api\/projects\/([^/]+)\/screens$/, async ([id], req, res) => {
+    checkId(id);
+    await mustBeMine(id);
     const body = await readBody(req);
     sendJson(res, 201, await addScreen(id, body.name, body.route));
   }],
   ["POST", /^\/api\/projects\/([^/]+)\/rename$/, async ([id], req, res) => {
+    checkId(id);
+    await mustBeMine(id);
     const body = await readBody(req);
     sendJson(res, 200, await rename(id, body.what, body.name));
   }],
   ["POST", /^\/api\/projects\/([^/]+)\/publish$/, async ([id], req, res) => {
     if (!fromButton(req)) throw new HttpError(403, "button_only", "Publish is the designer's button in Liveframe.");
+    checkId(id);
+    await mustBeMine(id);
     const body = await readBody(req);
     sendJson(res, 200, await publish(id, body.name));
+  }],
+  // My own copy of someone else's design (their design stays theirs). Liveframe's page only.
+  ["POST", /^\/api\/projects\/([^/]+)\/copy$/, async ([id], req, res) => {
+    if (!fromButton(req)) throw new HttpError(403, "button_only", "Copies are made from Liveframe's own page.");
+    const body = await readBody(req);
+    sendJson(res, 201, await copyDesign(id, body.name));
   }],
   ["GET", /^\/api\/projects\/([^/]+)\/ready$/, async ([id], _req, res) => sendJson(res, 200, await readyCheck(id))],
   ["POST", /^\/api\/projects\/([^/]+)\/ready$/, async ([id], req, res) => {
     if (!fromButton(req)) throw new HttpError(403, "button_only", "Ready for Development is the designer's button in Liveframe.");
+    checkId(id);
+    await mustBeMine(id);
     sendJson(res, 200, await markReady(id));
   }],
   ["GET", /^\/api\/events$/, (_p, req, res) => stream(req, res)],
