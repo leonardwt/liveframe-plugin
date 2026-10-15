@@ -153,7 +153,7 @@ if (!fs.existsSync(profileFile)) fail(`${short(entry.design)} isn't set up for L
 const profile = JSON.parse(fs.readFileSync(profileFile, "utf8"));
 if (values.app || !entry.app || !fs.existsSync(entry.app)) entry.app = copyOf(values.app ?? profile.repo, profile.branch);
 const tool = profile.install?.[0];
-if (tool && !has(tool)) fail(`${profile.name} installs its packages with ${tool}, which this Mac doesn't have.${tool === "pnpm" ? " Run `npm install -g pnpm` (or `corepack enable`)." : ""}`);
+if (tool && !has(tool)) fail(`${profile.name} installs its packages with ${tool}, which this Mac doesn't have. Install it: \`${has("brew") ? `brew install ${tool}` : `npm install -g ${tool}`}\`, then run this again.`);
 delete entry.source;
 
 // ---------- running? ----------

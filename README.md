@@ -42,7 +42,10 @@ In Claude Code:
 /plugin install liveframe@liveframe
 ```
 
-Needs a Mac with Node 22 or newer, git, Google Chrome, and GitHub's `gh` signed in (`gh auth login`).
+Liveframe needs a Mac with Node 22 or newer, git, Google Chrome and GitHub's `gh` signed in. You don't
+have to set those up first: the first `/liveframe:open` checks the Mac, lists what's missing, and
+installs it all with one yes (the parts that need your Mac password or a GitHub sign-in come as one
+command to paste in Terminal).
 
 ## Set up an app (once)
 
