@@ -5,8 +5,8 @@
 // screen to move it (a click without moving still opens it); Delete removes the selected screens or
 // the selected arrow; hover a screen for four dots and drag from one onto another screen to connect
 // them with an arrow. Pan with the trackpad, space + drag, or the middle button; zoom with ⌘/Ctrl +
-// scroll or the buttons. With ideas, a screen is the same page in every idea row: it moves, is
-// selected and is connected in every row at once.
+// scroll or the buttons. Selecting, moving and deleting are per frame (with ideas, a page in one
+// idea row); arrows are per page, drawn in every row that has both screens.
 
 const DESKTOP_W = 360; // how wide a screen is on the canvas
 const PHONE_W = 220;
@@ -91,12 +91,12 @@ export function editable(node, { onSave, empty, tip = "Double-click to rename", 
  * pictures(card): a picture of the screen, or null while there's none yet
  * appStatus(): the design's app while it isn't running yet ({ label }), else null
  * camera: where to start ({ x, y, k }); fits the canvas when there's none
- * layout: { <page>: { x, y } } where screens were moved to (in their row); others sit in a row
+ * layout: { <key>: { x, y } } where frames were moved to (in their row); others sit in a row
  * links: [{ from, to }] arrows between screens (pages)
  * onOpen(card, event): a screen was clicked (not dragged). The screen is a link to card.href, so
  *   ⌘-click and middle-click work too; call event.preventDefault() to open it another way.
  * onRename(what, value), onEditEnd(): a name was changed / a change of name finished
- * edit: null (look only), or { onLayout(layout), onLinks(links), onDelete(pages), onUndo() }
+ * edit: null (look only), or { onLayout(layout), onLinks(links), onDelete(keys), onUndo() }
  */
 export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layout = {}, links = [], onOpen, onRename, onEditEnd, edit = null }) {
   const stepW = viewport.width < 768 ? PHONE_W : DESKTOP_W;
@@ -129,7 +129,7 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
 
   // ---------- layout ----------
 
-  const pos = { ...layout }; // page → { x, y } in its row (moving changes it)
+  const pos = { ...layout }; // frame (key) → { x, y } in its row (moving changes it)
   const cards = []; // { card, row, el, frame, x, y } in world coordinates
   const rowsAt = []; // { cards: [...], y } where each row's screens start
   let width = 0;
@@ -147,7 +147,7 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
       rowsAt.push(here);
       let bottom = 0;
       row.cards.forEach((card, i) => {
-        const p = pos[card.page] ?? { x: i * (stepW + GAP), y: 0 };
+        const p = pos[card.key] ?? pos[card.page] ?? { x: i * (stepW + GAP), y: 0 };
         const frame = el("a", "fstep__frame");
         frame.style.height = `${stepH}px`;
         frame.href = card.href;
@@ -165,6 +165,7 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
         step.style.width = `${stepW}px`;
         step.style.setProperty("--fh", `${stepH}px`);
         step.dataset.page = card.page;
+        step.dataset.key = card.key;
         const c = { card, row: here, el: step, frame, pic, wait, x: p.x, y: here.y + p.y };
         if (edit) for (const side of ["top", "right", "bottom", "left"]) {
           const dot = el("span", `fhandle fhandle--${side}`);
@@ -184,7 +185,7 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
         title.addEventListener("click", (e) => {
           if (!edit) return;
           e.stopPropagation();
-          select(e.shiftKey ? toggled(card.page) : new Set([card.page]));
+          select(e.shiftKey ? toggled(card.key) : new Set([card.key]));
         });
         width = Math.max(width, p.x + stepW);
         bottom = Math.max(bottom, p.y + cardH);
@@ -273,7 +274,7 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
   function select(set) {
     selected = set;
     if (set.size && selectedLink != null) (selectedLink = null), drawLinks();
-    for (const c of cards) c.el.classList.toggle("is-selected", selected.has(c.card.page));
+    for (const c of cards) c.el.classList.toggle("is-selected", selected.has(c.card.key));
   }
 
   // ---------- camera ----------
@@ -366,9 +367,9 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
     }
     if (step) {
       const c = cards.find((x) => x.el === step);
-      const page = c.card.page;
-      const pages = selected.has(page) ? new Set(selected) : new Set([page]);
-      drag = { kind: "move", start, page, pages, from: Object.fromEntries([...pages].map((pg) => [pg, cards.filter((x) => x.card.page === pg).map((x) => ({ c: x, x: x.x, y: x.y }))])) };
+      const key = c.card.key;
+      const keys = selected.has(key) ? new Set(selected) : new Set([key]);
+      drag = { kind: "move", start, key, keys, from: cards.filter((x) => keys.has(x.card.key)).map((x) => ({ c: x, x: x.x, y: x.y })) };
       return;
     }
     // Empty canvas: a selection box (Shift: add to what's selected).
@@ -401,15 +402,15 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
       const hit = new Set(drag.base);
       for (const c of cards) {
         const rc = { x: c.x, y: c.y, w: stepW, h: cardH };
-        if (rc.x < b.x && rc.x + rc.w > a.x && rc.y < b.y && rc.y + rc.h > a.y) hit.add(c.card.page);
+        if (rc.x < b.x && rc.x + rc.w > a.x && rc.y < b.y && rc.y + rc.h > a.y) hit.add(c.card.key);
       }
       select(hit);
     } else if (drag.kind === "move") {
       root.classList.add("is-moving");
-      if (!selected.has(drag.page)) select(drag.pages);
+      if (!selected.has(drag.key)) select(drag.keys);
       const mx = dx / cam.k;
       const my = dy / cam.k;
-      for (const list of Object.values(drag.from)) for (const { c, x, y } of list) {
+      for (const { c, x, y } of drag.from) {
         c.x = x + mx;
         c.y = y + my;
         c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
@@ -433,11 +434,9 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
     cards.forEach((c) => c.el.classList.remove("is-target"));
     if (d && moved && edit) {
       if (d.kind === "move") {
-        const next = { ...pos };
-        for (const [page, list] of Object.entries(d.from)) {
-          const first = list[0].c;
-          next[page] = { x: Math.round(first.x), y: Math.round(first.y - first.row.y) };
-        }
+        // Every frame keeps where it is now (a frame never moved before gets its row place written down).
+        const next = {};
+        for (const c of cards) next[c.card.key] = { x: Math.round(c.x), y: Math.round(c.y - c.row.y) };
         edit.onLayout(next);
       } else if (d.kind === "link") {
         const over = document.elementsFromPoint(e.clientX, e.clientY).find((n) => n.classList?.contains("fstep"));

@@ -30,7 +30,7 @@ function h(tag, props, ...kids) {
 
 function icon(name, size = 16) {
   const paths = {
-    logo: '<rect x="3" y="4" width="18" height="16" rx="4"/><circle cx="12" cy="14" r="2.2" fill="#3d5bff" stroke="none"/>',
+    logo: '<path d="M5.25 4.1v11.8a3.75 3.75 0 0 0 3.75 3.75h10.9" stroke-width="2.45"/><circle cx="16.1" cy="7.9" r="3.4" fill="#3d5bff" stroke="none"/>',
     desktop: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
     phone: '<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
@@ -376,7 +376,7 @@ async function design(id, version = null) {
     return [{
       title: "Ideas",
       sub: `${plural(d.ideas.ideas.length, "idea")} · ${plural(d.screens.length, "screen")}`,
-      rows: options.map((o) => ({ label: o.note ? `${o.name} · ${o.note}` : o.name, cards: d.screens.map((s) => card(s, o.id)) })),
+      rows: options.map((o) => ({ label: o.note ? `${o.name} · ${o.note}` : o.name, cards: d.screens.filter((s) => !(d.hidden ?? []).includes(`${s.page}~${o.id}`)).map((s) => card(s, o.id)) })),
     }];
   }
 
@@ -413,7 +413,7 @@ async function design(id, version = null) {
     }
     const v = shown();
     const canEdit = !SITE && d.mine && d.status === "designing" && !v;
-    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device, state.ref, v ? [v.layout, v.links] : [d.layout, d.links]]);
+    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.hidden, d.status, state.device, state.ref, v ? [v.layout, v.links] : [d.layout, d.links]]);
     if (keep && state.canvas?.shape === shape) return;
     const camera = keep ? state.canvas?.camera() : null;
     state.canvas?.destroy();
@@ -435,10 +435,23 @@ async function design(id, version = null) {
       edit: canEdit ? {
         onLayout: (layout) => changeCanvas({ layout }),
         onLinks: (links) => changeCanvas({ links }),
-        onDelete: (pages) => {
-          const gone = state.d.screens.filter((s) => pages.includes(s.page));
-          changeCanvas({ screens: state.d.screens.filter((s) => !pages.includes(s.page)) });
-          toast(`Removed ${gone.length === 1 ? `“${gone[0].name}”` : plural(gone.length, "screen")} from the canvas.`, false, 6000, { label: "Undo", run: undo });
+        onDelete: (keys) => {
+          // Without ideas a frame is the screen. With ideas it's the screen in one idea row: hidden
+          // there; a screen hidden in every row leaves the canvas.
+          const d = state.d;
+          const nameOf = (key) => d.screens.find((s) => s.page === key.split("~")[0])?.name ?? key;
+          const ideaOf = (key) => [{ id: "before", name: "Before" }, ...(d.ideas?.ideas ?? [])].find((o) => o.id === key.split("~")[1])?.name;
+          const what = keys.length === 1 ? `“${nameOf(keys[0])}”${d.ideas ? ` from ${ideaOf(keys[0])}` : ""}` : plural(keys.length, "frame");
+          if (!d.ideas) changeCanvas({ screens: d.screens.filter((s) => !keys.includes(s.page)) });
+          else {
+            const options = ["before", ...d.ideas.ideas.map((o) => o.id)];
+            const hidden = new Set([...(d.hidden ?? []), ...keys]);
+            const gone = d.screens.filter((s) => options.every((o) => hidden.has(`${s.page}~${o}`))).map((s) => s.page);
+            const change = { hidden: [...hidden].filter((k) => !gone.includes(k.split("~")[0])) };
+            if (gone.length) change.screens = d.screens.filter((s) => !gone.includes(s.page));
+            changeCanvas(change);
+          }
+          toast(`Removed ${what}.`, false, 6000, { label: "Undo", run: undo });
         },
         onUndo: undo,
       } : null,
@@ -470,12 +483,12 @@ async function design(id, version = null) {
 
   // The canvas's screens, places and arrows: changed here at once, saved behind, undoable (⌘Z).
   state.undo = [];
-  const snapshot = () => ({ screens: state.d.screens, layout: state.d.layout, links: state.d.links });
+  const snapshot = () => ({ screens: state.d.screens, layout: state.d.layout, links: state.d.links, hidden: state.d.hidden ?? [] });
   async function changeCanvas(change, { remember = true } = {}) {
     if (remember) state.undo = [...state.undo.slice(-29), snapshot()];
     if (change.screens) {
       const pages = new Set(change.screens.map((s) => s.page));
-      state.d.layout = Object.fromEntries(Object.entries(change.layout ?? state.d.layout ?? {}).filter(([pg]) => pages.has(pg)));
+      state.d.layout = Object.fromEntries(Object.entries(change.layout ?? state.d.layout ?? {}).filter(([k]) => pages.has(k.split("~")[0])));
       state.d.links = (change.links ?? state.d.links ?? []).filter((l) => pages.has(l.from) && pages.has(l.to));
     }
     Object.assign(state.d, change);

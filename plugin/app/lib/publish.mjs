@@ -67,8 +67,10 @@ export async function publish(id, name) {
     // Each screen; with ideas, each screen on each idea ("Before" first).
     const ideas = metaOf(id).ideas ?? null;
     const options = optionsOf(ideas);
+    // Frames hidden in an idea row (deleted from that row on the canvas) aren't published.
+    const hidden = new Set(metaOf(id).hidden ?? []);
     const list = options.length
-      ? options.flatMap((o) => screens.map((sc) => ({ page: sc.page, key: `${sc.page}~${o.id}`, name: sc.name, route: sc.route, idea: o.id, ideaName: o.name })))
+      ? options.flatMap((o) => screens.map((sc) => ({ page: sc.page, key: `${sc.page}~${o.id}`, name: sc.name, route: sc.route, idea: o.id, ideaName: o.name }))).filter((sc) => !hidden.has(sc.key))
       : screens.map((sc) => ({ page: sc.page, key: sc.page, name: sc.name, route: sc.route, idea: null }));
     for (const sc of list) Object.assign(sc, { file: `${sc.key}.html`, picture: `${sc.key}.jpg`, phonePicture: `${sc.key}@phone.jpg` });
     const url = statusOf(id).url;
@@ -79,7 +81,7 @@ export async function publish(id, name) {
       const same = list.filter((x) => x.idea === sc.idea);
       const i = same.indexOf(sc);
       const routes = Object.fromEntries(same.map((x) => [x.route, x.file]));
-      const others = options.map((o) => ({ name: o.name, file: `${sc.page}~${o.id}.html`, on: o.id === sc.idea }));
+      const others = options.filter((o) => !hidden.has(`${sc.page}~${o.id}`)).map((o) => ({ name: o.name, file: `${sc.page}~${o.id}.html`, on: o.id === sc.idea }));
       const shots = await capture(url + withIdea(sc.route, sc.idea), `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, same, i, others) });
       fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), shots.desktop);
       fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.phonePicture), shots.phone);

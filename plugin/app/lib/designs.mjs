@@ -125,6 +125,7 @@ export async function summary(id) {
     ideas: meta.ideas ?? null,
     screens: screensOf(id),
     layout: meta.layout ?? {},
+    hidden: Array.isArray(meta.hidden) ? meta.hidden : [],
     links: Array.isArray(meta.links) ? meta.links : [],
     versions,
     latestVersion: last,
@@ -254,7 +255,7 @@ export async function addScreen(id, name, route) {
  * The canvas: which screens it has, where they were moved to, and the arrows between them. Any of
  * the three (undo sends the earlier ones back). Removing a screen also removes its place and arrows.
  */
-export async function setCanvas(id, { screens, layout, links }) {
+export async function setCanvas(id, { screens, layout, links, hidden }) {
   checkId(id);
   const meta = metaOf(id);
   const changed = [];
@@ -276,9 +277,16 @@ export async function setCanvas(id, { screens, layout, links }) {
     meta.links = links.filter((l) => typeof l?.from === "string" && typeof l?.to === "string" && l.from !== l.to).map((l) => ({ from: l.from, to: l.to }));
     changed.push("arrows");
   }
+  if (hidden !== undefined) {
+    if (!Array.isArray(hidden)) throw new HttpError(400, "bad_hidden", "Hidden frames are [\"page~idea\"].");
+    meta.hidden = [...new Set(hidden.filter((k) => typeof k === "string" && /^[\w.-]+~[\w-]+$/.test(k)))];
+    changed.push("frames hidden");
+  }
   // Nothing left pointing at a screen that's gone.
   const pages = new Set((meta.screens ?? []).map((s) => s.page));
-  if (meta.layout) meta.layout = Object.fromEntries(Object.entries(meta.layout).filter(([pg]) => pages.has(pg)));
+  const pageOf = (key) => key.split("~")[0];
+  if (meta.layout) meta.layout = Object.fromEntries(Object.entries(meta.layout).filter(([k]) => pages.has(pageOf(k))));
+  if (meta.hidden) meta.hidden = meta.hidden.filter((k) => pages.has(pageOf(k)));
   if (meta.links) meta.links = meta.links.filter((l) => pages.has(l.from) && pages.has(l.to));
   writeMeta(id, meta);
   await inOrder(() => commitPaths([rel(id, "project.json")], `Canvas: ${meta.title || id} (${changed.join("; ") || "no change"})`));

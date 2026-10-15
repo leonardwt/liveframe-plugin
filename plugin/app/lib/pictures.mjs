@@ -21,9 +21,11 @@ const fileOf = (id, key, w, h) => path.join(DIR, id, `${key}@${w}x${h}.jpg`);
 
 /** What the canvas shows: each screen, or each screen on each idea. [{ key, route }] */
 export function shotsOf(id) {
-  const options = optionsOf(metaOf(id).ideas ?? null);
+  const meta = metaOf(id);
+  const options = optionsOf(meta.ideas ?? null);
+  const hidden = new Set(meta.hidden ?? []);
   return screensOf(id).flatMap(({ page, route }) =>
-    options.length ? options.map((o) => ({ key: `${page}~${o.id}`, route: withIdea(route, o.id) })) : [{ key: page, route }],
+    options.length ? options.filter((o) => !hidden.has(`${page}~${o.id}`)).map((o) => ({ key: `${page}~${o.id}`, route: withIdea(route, o.id) })) : [{ key: page, route }],
   );
 }
 

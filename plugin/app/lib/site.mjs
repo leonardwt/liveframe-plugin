@@ -75,7 +75,7 @@ function shell(appName) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="liveframe-version" content="${VERSION}">
 <title>${esc(appName)} designs · Liveframe</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='4' width='18' height='16' rx='4' fill='none' stroke='%23ececef' stroke-width='2'/%3E%3Ccircle cx='12' cy='14' r='2.2' fill='%233d5bff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M7 5.5v15.75a5 5 0 0 0 5 5h14.5' fill='none' stroke='%23ececef' stroke-width='3.25' stroke-linecap='round'/%3E%3Ccircle cx='21.5' cy='10.5' r='4.5' fill='%233d5bff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="liveframe/app/app.css?v=${VERSION}">
 <script>window.__liveframeSite = { data: "liveframe/site.json" };</script>
 <script type="module" src="liveframe/app/app.js?v=${VERSION}"></script>

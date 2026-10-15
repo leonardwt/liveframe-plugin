@@ -2,6 +2,13 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.5.2
+
+- **Select, move and delete exactly the frame you pick.** With ideas, deleting a frame takes that
+  page out of that one idea row (it isn't published for that idea); delete it from every row and
+  the screen leaves the canvas. Moving a frame no longer moves its twins in the other rows. Arrows
+  still connect pages, in every row.
+
 ## 0.5.1
 
 - Dragging a selection box no longer tints other screens and labels blue (the browser was selecting
