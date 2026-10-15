@@ -281,3 +281,8 @@ body:has(.ftool) .toast { bottom: 84px; }
 .home__sub { margin: 36px 0 14px; font-size: 13px; font-weight: 500; color: var(--muted); }
 a.btn[aria-disabled="true"] { pointer-events: none; opacity: 0.5; }
 .viewing { height: auto; min-height: 32px; flex-wrap: wrap; padding: 6px 14px; }
+
+/* "Update available": a newer Liveframe. */
+.btn--update { border-color: rgb(61 91 255 / 0.45); color: var(--blue-text); }
+.btn--update:hover { border-color: var(--blue); }
+.dot--update { background: var(--blue); }

@@ -130,6 +130,24 @@ if (!SITE) {
 /** The site's page for a path in the design repo: online when it's set up, else served by Liveframe. */
 const siteLink = (rel) => (settings.online ? settings.online.replace(/\/?$/, "/") : settings.site) + rel;
 
+/**
+ * A newer Liveframe: a pill in the top bar. Clicking it opens a Claude session with /liveframe:update
+ * typed in (Claude says what's new and updates when you say yes). Not on the online site.
+ */
+function updatePill() {
+  const u = settings.update;
+  if (SITE || !u?.available) return null;
+  const tip = `Liveframe ${u.latest} is out (you have ${u.current})${u.notes?.length ? `: ${u.notes.join(" · ")}` : ""}. Click to update with Claude.`;
+  return h("button", { type: "button", class: "btn btn--update tip-end", "data-tip": tip, title: tip, onclick: async () => {
+    try {
+      await api("/api/update/claude", { body: {} });
+      toast("Opening Claude… Confirm the folder when it asks, then send the message.");
+    } catch (err) {
+      toast(err.message, true);
+    }
+  } }, h("span", { class: "dot dot--update" }), `Update available · ${u.latest}`);
+}
+
 function designSystemButton(kind = "components", label = "Design system") {
   const href = settings.designSystem?.[kind];
   return h("a", { class: "btn btn--ghost", href: href ?? "#", target: "_blank", rel: "noopener", "aria-disabled": href ? null : "true" }, icon(kind === "tokens" ? "palette" : "components", 14), label);
@@ -145,7 +163,7 @@ async function home() {
 
   async function draw() {
     await loadSettings();
-    head.replaceChildren(brand(), h("span", { class: "crumb" }, "/"), h("span", { class: "bar__title" }, settings.app ? `${settings.app} designs` : "Designs"), h("span", { class: "spacer" }), designSystemButton());
+    head.replaceChildren(...[brand(), h("span", { class: "crumb" }, "/"), h("span", { class: "bar__title" }, settings.app ? `${settings.app} designs` : "Designs"), h("span", { class: "spacer" }), updatePill(), designSystemButton()].filter(Boolean));
     let designs;
     try {
       designs = await api("/api/projects");
@@ -513,6 +531,7 @@ async function design(id, version = null) {
       versions,
       byline,
       h("span", { class: "spacer" }),
+      updatePill(),
       ...actions,
     ].filter(Boolean));
     bar.querySelector(".pop input")?.focus();

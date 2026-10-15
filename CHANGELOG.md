@@ -2,6 +2,11 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.4.2
+
+- **Liveframe tells you when there's an update**: an "Update available" pill in the top bar. Click it
+  and Claude opens with `/liveframe:update` typed in: it says what's new and updates when you say yes.
+
 ## 0.4.1
 
 - **Publish is about 6× faster**: each screen opens once (not three times), three at a time. A

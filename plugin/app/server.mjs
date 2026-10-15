@@ -11,6 +11,7 @@ import { HttpError, checkCaller, sendJson, readBody, match, TYPES, APP_HOST, PAG
 import { profile, hasProfile } from "./lib/profile.mjs";
 import { listDesigns, summary, createDesign, copyDesign, mustBeMine, addScreen, rename, checkId, ensureFolder, ensureRunning, statusOf, touch, stopAllApps, stopWatching, folderOf } from "./lib/designs.mjs";
 import { whoAmI } from "./lib/identity.mjs";
+import { updateState, startCheckingForUpdates } from "./lib/updates.mjs";
 import { openClaude } from "./lib/claude.mjs";
 import { stream, closeAll, onEvent } from "./lib/events.mjs";
 import { picturesOf, pictureFile, sizeOk, retake, stopPictures } from "./lib/pictures.mjs";
@@ -38,9 +39,15 @@ const routes = [
       site,
       designSystem: ds ? { components: site + "design-system/" + ds.components, tokens: site + "design-system/" + ds.tokens, sha: ds.sha, at: ds.at } : null,
       me: { login: me.login, name: me.name },
+      update: updateState(),
       keepingUp: keepingUp(),
       push: pushState(),
     });
+  }],
+  // A newer Liveframe: a Claude session with /liveframe:update typed in (Liveframe's page only).
+  ["POST", /^\/api\/update\/claude$/, async (_p, req, res) => {
+    if (!fromButton(req)) throw new HttpError(403, "button_only", "Updates are started from Liveframe's own page.");
+    sendJson(res, 200, await openClaude(DESIGN_REPO, "/liveframe:update"));
   }],
   ["POST", /^\/api\/keep-up$/, async (_p, _req, res) => sendJson(res, 200, await keepUp())],
   ["GET", /^\/api\/projects$/, async (_p, _req, res) => sendJson(res, 200, await listDesigns())],
@@ -195,6 +202,7 @@ onEvent((e) => e.type === "saved" && retake(e.project));
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`Liveframe on http://localhost:${PORT} · ${hasProfile() ? profile().name : "no app profile yet"} · designs from ${DESIGN_REPO} · app from ${APP_REPO}`);
   startKeepingUp();
+  startCheckingForUpdates();
 });
 
 for (const sig of ["SIGINT", "SIGTERM"]) {
