@@ -2,6 +2,11 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.4.1
+
+- **Publish is about 6× faster**: each screen opens once (not three times), three at a time. A
+  design with 9 screens and one idea went from about 3 minutes to 30 seconds.
+
 ## 0.4.0
 
 - **Who made it**: every design shows its designer, with their GitHub account ("Leonard (leonardwt)"),

@@ -1,7 +1,7 @@
 {
   "name": "liveframe",
   "displayName": "Liveframe",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Design in an app's real code with Claude, on your own Mac. /liveframe:setup prepares a design repo for an app, /liveframe:open starts Liveframe for designers, /liveframe:take brings a finished design into the app as a pull request.",
   "author": { "name": "Leonard Goh" },
   "repository": "https://github.com/leonardwt/liveframe-plugin",

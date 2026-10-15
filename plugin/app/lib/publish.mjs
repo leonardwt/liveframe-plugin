@@ -13,8 +13,8 @@ import { DESIGN_REPO } from "./config.mjs";
 import { inOrder, commitPaths, pushNow, git } from "./git.mjs";
 import { profile } from "./profile.mjs";
 import { checkId, metaOf, save, summary, versionsOf, patchOf, patchHash, whenReady, statusOf, screensOf } from "./designs.mjs";
-import { snapshot } from "./snapshot.mjs";
-import { takePicture, withIdea } from "./pictures.mjs";
+import { capture } from "./snapshot.mjs";
+import { withIdea } from "./pictures.mjs";
 import { optionsOf } from "./ideas.mjs";
 import { whoAmI } from "./identity.mjs";
 import { writeSite, esc } from "./site.mjs";
@@ -22,6 +22,8 @@ import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
 
 let publishing = new Set();
+// Screens saved at once: the design's dev server and Chrome both cope with a few in parallel.
+const PARALLEL = Number(process.env.LIVEFRAME_PUBLISH_PARALLEL ?? 3);
 
 /**
  * The small bar on every saved screen: back to the version, the other screens, and (with ideas) the
@@ -71,17 +73,22 @@ export async function publish(id, name) {
     for (const sc of list) Object.assign(sc, { file: `${sc.key}.html`, picture: `${sc.key}.jpg`, phonePicture: `${sc.key}@phone.jpg` });
     const url = statusOf(id).url;
     notify({ type: "publishing", project: id, done: 0, total: list.length });
-    for (const [k, sc] of list.entries()) {
+    // Three screens at a time, each from one load of its page (capture: the saved page and both pictures).
+    let done = 0;
+    const one = async (sc) => {
       const same = list.filter((x) => x.idea === sc.idea);
       const i = same.indexOf(sc);
       const routes = Object.fromEntries(same.map((x) => [x.route, x.file]));
       const others = options.map((o) => ({ name: o.name, file: `${sc.page}~${o.id}.html`, on: o.id === sc.idea }));
-      const at = url + withIdea(sc.route, sc.idea);
-      await snapshot(at, `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, same, i, others) });
-      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), await takePicture(at, 1440, 900));
-      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.phonePicture), await takePicture(at, 390, 844));
-      notify({ type: "publishing", project: id, done: k + 1, total: list.length });
-    }
+      const shots = await capture(url + withIdea(sc.route, sc.idea), `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, same, i, others) });
+      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), shots.desktop);
+      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.phonePicture), shots.phone);
+      notify({ type: "publishing", project: id, done: ++done, total: list.length });
+    };
+    const queue = [...list];
+    await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, async () => {
+      while (queue.length) await one(queue.shift());
+    }));
     const me = await whoAmI();
     const v = { n, name: label, at: new Date().toISOString(), designer: me.name, designerLogin: me.login, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "version.json"), JSON.stringify(v, null, 2) + "\n");

@@ -1,6 +1,6 @@
 {
   "name": "liveframe",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "description": "Liveframe: designers change an app's real code with Claude, on their own Mac; designs are kept in a design repo, published for review online, and handed to engineering.",

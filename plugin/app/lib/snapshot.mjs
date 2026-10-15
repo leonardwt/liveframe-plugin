@@ -70,19 +70,52 @@ const IN_PAGE = (routes) => `(async () => {
   return "<!doctype html>\\n" + clone.outerHTML;
 })()`;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const shot = async (page, w, h) => Buffer.from((await page("Page.captureScreenshot", { format: "jpeg", quality: 82, clip: { x: 0, y: 0, width: w, height: h, scale: 1 } })).data, "base64");
+
 /**
- * Save the page at `url` (a running design) as a plain page at `file` (a path in the design repo).
- * routes: other screens of this version, { route: "file.html" }. bar: HTML put at the end of <body>.
- * Returns the page's size in bytes.
+ * One screen for Publish, from one load of the page at `url` (a running design): its picture at
+ * desktop size, the page saved as a plain page at `file` (a path in the design repo), then the same
+ * tab resized to a phone for the phone picture. routes: other screens of this version,
+ * { route: "file.html" }. bar: HTML put at the end of the saved page's <body>.
+ * Returns { desktop, phone } (JPEG bytes; phone null unless asked for).
  */
-export async function snapshot(url, file, { width = 1440, height = 900, routes = {}, bar = "" } = {}) {
-  const { page, close } = await openPage(url, { width, height });
+export async function capture(url, file, { routes = {}, bar = "", phone = true } = {}) {
+  const { page, close } = await openPage(url, { width: 1440, height: 900 });
+  let html;
+  let desktop;
+  let phoneJpg = null;
+  try {
+    desktop = await shot(page, 1440, 900);
+    html = await evaluate(page, IN_PAGE(routes));
+    if (phone) {
+      await page("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      // The page lays itself out again for the narrow width (and may fetch what that layout needs).
+      await evaluate(page, "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+      await sleep(700);
+      phoneJpg = await shot(page, 390, 844);
+    }
+  } finally {
+    await close();
+  }
+  await savePage(url, file, html, bar);
+  return { desktop, phone: phoneJpg };
+}
+
+/** Save the page at `url` (a running design) as a plain page at `file`, on its own load. */
+export async function snapshot(url, file, { routes = {}, bar = "" } = {}) {
+  const { page, close } = await openPage(url, { width: 1440, height: 900 });
   let html;
   try {
     html = await evaluate(page, IN_PAGE(routes));
   } finally {
     await close();
   }
+  return savePage(url, file, html, bar);
+}
+
+/** The rendered page's HTML, with its fonts and images moved to assets/, written to `file`. Returns its size. */
+async function savePage(url, file, html, bar) {
   const origin = new URL(url).origin;
   const assetsDir = path.join(DESIGN_REPO, "assets");
   fs.mkdirSync(assetsDir, { recursive: true });
