@@ -28,7 +28,9 @@ the design repo     ← designs (each one a change to the app, a journal, publis
    **Ideas side by side:** ask for variants ("try a dark version and a compact one") and Claude builds
    them behind a switcher Liveframe draws over the app; the canvas shows a row per idea. Tell Claude
    which one wins and it keeps that one and takes the rest out (`/liveframe:variants`).
-2. **Publish.** Saves the design's screens as plain pages for review, online a minute later.
+2. **Publish.** Saves the design's screens as plain pages for review, online a minute later. The
+   online site *is* Liveframe, read-only: the same designs page and canvas, without the designer's
+   buttons, showing published versions.
 3. **Ready for Development.** Checks the design (published as it is, one idea left, still fits the
    app, frontend only, design-system notes), then Claude writes a handoff note from the design's journal.
 4. **Take it.** The engineer runs `/liveframe:take`: a branch and a pull request with the change and
@@ -103,7 +105,7 @@ The design's handoff page has the exact command.
 In a **design repo**: `liveframe/app.json` (the app profile), `projects/<design>/` (`changes.patch`:
 the design's change to the app from the commit in `project.json`; `journal.md`; `v1/`, `v2/`…:
 published versions; `handoff.md`), `design-system/`, `assets/` (fonts and images of published pages),
-and `index.html` (the website's home page).
+and `index.html` plus `liveframe/app/` and `liveframe/site.json` (the online Liveframe).
 
 On a **designer's Mac**: `~/Liveframe/` (the copies, and `designs/<repo>/<design>`: each design's
 folder, a git worktree of the app copy), `~/.liveframe/` (ports, logs, pictures of screens).

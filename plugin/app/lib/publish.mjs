@@ -4,7 +4,8 @@
 //   projects/<id>/v<n>/version.json   { n, name, at, designer, base, patch, screens: [{ page, name, route, file, picture }] }
 //   projects/<id>/v<n>/<page>.html    each screen as it rendered (lib/snapshot.mjs)
 //   projects/<id>/v<n>/<page>.jpg     a picture of it, for the version's and the site's covers
-//   projects/<id>/v<n>/index.html     the version: its screens
+//   projects/<id>/v<n>/<page>@phone.jpg  the same at phone size
+//   projects/<id>/v<n>/index.html     → the version in the online Liveframe (site.mjs)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -15,7 +16,7 @@ import { checkId, metaOf, save, summary, versionsOf, patchOf, patchHash, whenRea
 import { snapshot } from "./snapshot.mjs";
 import { takePicture, withIdea } from "./pictures.mjs";
 import { optionsOf } from "./ideas.mjs";
-import { writeSite, sitePage, esc } from "./site.mjs";
+import { writeSite, esc } from "./site.mjs";
 import { HttpError } from "./http.mjs";
 import { notify } from "./events.mjs";
 
@@ -42,20 +43,6 @@ ${ideas}
 </div>`;
 }
 
-function versionPage(id, v, title) {
-  const here = `projects/${id}/v${v.n}/index.html`;
-  const cards = (list) => `<ul class="screens">${list.map((s) => `<li><a class="card" href="${esc(s.file)}"><div class="card__cover">${s.picture ? `<img src="${esc(s.picture)}" alt="">` : ""}</div><div class="card__body"><strong>${esc(s.name)}</strong><span>${esc(s.route)}</span></div></a></li>`).join("")}</ul>`;
-  const groups = v.ideas
-    ? [{ id: "before", name: "Before", note: "The app as it is" }, ...v.ideas]
-        .map((o) => `<h2 class="h2">${esc(o.name)}${o.note ? ` · <span class="muted">${esc(o.note)}</span>` : ""}</h2>${cards(v.screens.filter((s) => s.idea === o.id))}`)
-        .join("\n")
-    : cards(v.screens);
-  const body = `<h1>${esc(title)} · v${v.n}</h1>
-<p class="lead">${esc(v.name)} · published ${esc(new Date(v.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }))}${v.designer ? ` by ${esc(v.designer)}` : ""}${v.ideas ? ` · ${v.ideas.length + 1} options to compare` : ""}</p>
-${groups}`;
-  return sitePage(here, { title: `${title} · v${v.n}`, crumbs: [[`projects/${id}/index.html`, title], [null, `v${v.n}`]], body });
-}
-
 /** Publish the design's latest as the next version. */
 export async function publish(id, name) {
   checkId(id);
@@ -80,7 +67,7 @@ export async function publish(id, name) {
     const list = options.length
       ? options.flatMap((o) => screens.map((sc) => ({ page: sc.page, key: `${sc.page}~${o.id}`, name: sc.name, route: sc.route, idea: o.id, ideaName: o.name })))
       : screens.map((sc) => ({ page: sc.page, key: sc.page, name: sc.name, route: sc.route, idea: null }));
-    for (const sc of list) Object.assign(sc, { file: `${sc.key}.html`, picture: `${sc.key}.jpg` });
+    for (const sc of list) Object.assign(sc, { file: `${sc.key}.html`, picture: `${sc.key}.jpg`, phonePicture: `${sc.key}@phone.jpg` });
     const url = statusOf(id).url;
     notify({ type: "publishing", project: id, done: 0, total: list.length });
     for (const [k, sc] of list.entries()) {
@@ -91,12 +78,12 @@ export async function publish(id, name) {
       const at = url + withIdea(sc.route, sc.idea);
       await snapshot(at, `${dir}/${sc.file}`, { routes, bar: screenBar(meta.title || id, n, same, i, others) });
       fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.picture), await takePicture(at, 1440, 900));
+      fs.writeFileSync(path.join(DESIGN_REPO, dir, sc.phonePicture), await takePicture(at, 390, 844));
       notify({ type: "publishing", project: id, done: k + 1, total: list.length });
     }
     const designer = (await git(["config", "user.name"])).stdout.trim() || null;
     const v = { n, name: label, at: new Date().toISOString(), designer, base: meta.base, patch: patchHash(patchOf(id)), ideas: ideas?.ideas ?? null, screens: list };
     fs.writeFileSync(path.join(DESIGN_REPO, dir, "version.json"), JSON.stringify(v, null, 2) + "\n");
-    fs.writeFileSync(path.join(DESIGN_REPO, dir, "index.html"), versionPage(id, v, meta.title || id));
     await inOrder(async () => {
       await writeSite();
       await commitPaths([`projects/${id}`, "assets", "index.html", "liveframe"], `Publish ${meta.title || id} v${n}: ${label}`);

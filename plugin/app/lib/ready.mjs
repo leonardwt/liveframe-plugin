@@ -171,7 +171,7 @@ export async function markReady(id) {
     writeMeta(id, meta);
     await inOrder(async () => {
       await writeSite();
-      await commitPaths([`projects/${id}`, "index.html"], `Ready for Development: ${meta.title} v${v.n}`);
+      await commitPaths([`projects/${id}`, "index.html", "liveframe"], `Ready for Development: ${meta.title} v${v.n}`);
     });
     const push = await pushNow();
     notify({ type: "changed", project: id });

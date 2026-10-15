@@ -1,7 +1,15 @@
 // Liveframe's pages: the designs (/) and a design (/d/<id>): its screens, Publish and Ready for
 // Development. Plain DOM, no build step.
+//
+// The same pages are the online site, read-only: the design repo's index.html loads them with
+// window.__liveframeSite = { data: "liveframe/site.json" }. Then the data comes from that file (what
+// Publish wrote), addresses are #/d/<id>[/v<n>], the canvas shows a published version's pictures,
+// and the designer's buttons (New design, Design with Claude, Publish, Ready for Development,
+// renaming) aren't there.
 
-import { flowCanvas, editable } from "/assets/flow.js";
+import { flowCanvas, editable } from "./flow.js";
+
+const SITE = window.__liveframeSite ?? null;
 
 const root = document.getElementById("root");
 
@@ -37,10 +45,28 @@ function icon(name, size = 16) {
 }
 
 async function api(path, options) {
+  if (SITE) return siteApi(path);
   const res = await fetch(path, options?.body ? { method: "POST", headers: { "content-type": "application/json" }, ...options, body: JSON.stringify(options.body) } : options);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.message || "Something went wrong."), { code: data.error });
   return data;
+}
+
+// ---------- the online site's data ----------
+
+let siteData = null;
+async function siteApi(path) {
+  siteData ??= fetch(SITE.data, { cache: "no-store" }).then((r) => {
+    if (!r.ok) throw new Error("Couldn't load the designs.");
+    return r.json();
+  });
+  const data = await siteData;
+  if (path === "/api/settings") return { app: data.app, site: "", online: null, designSystem: data.designSystem };
+  if (path === "/api/projects") return data.designs;
+  const m = /^\/api\/projects\/([^/]+)$/.exec(path);
+  const d = m && data.designs.find((x) => x.id === decodeURIComponent(m[1]));
+  if (d) return d;
+  throw new Error("There's no such design.");
 }
 
 function ago(iso) {
@@ -62,13 +88,17 @@ function toast(text, error = false, ms = 3600) {
   toastTimer = setTimeout(() => el.remove(), ms);
 }
 
+/** A page of Liveframe: /d/<id> here, #/d/<id> on the online site. */
+const hrefOf = (path) => (SITE ? `#${path}` : path);
+
 function go(path) {
+  if (SITE) return void (location.hash = path);
   history.pushState(null, "", path);
   route();
 }
 
 function brand() {
-  return h("a", { class: "brand tip-start", href: "/", "data-tip": "All designs", onclick: (e) => (e.preventDefault(), go("/")) }, icon("logo", 18), h("span", { class: "brand__name" }, "Liveframe"));
+  return h("a", { class: "brand tip-start", href: hrefOf("/"), "data-tip": "All designs", onclick: (e) => (e.preventDefault(), go("/")) }, icon("logo", 18), h("span", { class: "brand__name" }, "Liveframe"));
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -88,12 +118,14 @@ let settings = { app: null, site: null, online: null, designSystem: null };
 const loadSettings = () => api("/api/settings").then((s) => (settings = s)).catch(() => settings);
 
 let onEvent = () => {};
-const events = new EventSource("/api/events");
-events.onmessage = (e) => {
-  try {
-    onEvent(JSON.parse(e.data));
-  } catch {}
-};
+if (!SITE) {
+  const events = new EventSource("/api/events");
+  events.onmessage = (e) => {
+    try {
+      onEvent(JSON.parse(e.data));
+    } catch {}
+  };
+}
 
 /** The site's page for a path in the design repo: online when it's set up, else served by Liveframe. */
 const siteLink = (rel) => (settings.online ? settings.online.replace(/\/?$/, "/") : settings.site) + rel;
@@ -125,9 +157,10 @@ async function home() {
       h("h1", null, "Designs"),
       h("span", { class: "spacer" }),
       settings.online ? h("a", { class: "btn btn--ghost", href: settings.online, target: "_blank", rel: "noopener" }, icon("external", 14), "Online") : null,
-      h("button", { type: "button", class: "btn btn--primary", onclick: () => newDesign() }, icon("plus", 14), "New design"));
+      SITE ? null : h("button", { type: "button", class: "btn btn--primary", onclick: () => newDesign() }, icon("plus", 14), "New design"));
     const open = designs.filter((d) => d.status !== "archived");
     const done = designs.filter((d) => d.status === "archived");
+    if (!designs.length && SITE) return void body.replaceChildren(top, h("p", { class: "muted" }, "Nothing published yet."));
     if (!designs.length) {
       body.replaceChildren(top,
         h("button", { type: "button", class: "dcard dcard--empty", onclick: () => newDesign() },
@@ -152,15 +185,15 @@ function card(d) {
   else if (d.status === "ready") chips.push(h("span", { class: "dchip dchip--ready" }, `Ready for Development · v${d.ready.version}`));
   else if (d.latestVersion) chips.push(h("span", { class: "dchip" }, `v${d.latestVersion.n}${d.unpublished ? " · changed since" : ""}`));
   else chips.push(h("span", { class: "dchip dchip--draft" }, "Not published yet"));
-  const href = `/d/${encodeURIComponent(d.id)}`;
-  return h("a", { class: "dcard", href, onclick: (e) => (e.preventDefault(), go(href)) },
+  const path = `/d/${encodeURIComponent(d.id)}`;
+  return h("a", { class: "dcard", href: hrefOf(path), onclick: (e) => (e.preventDefault(), go(path)) },
     h("div", { class: `dcard__cover${d.status === "ready" ? " dcard__cover--ready" : ""}` },
       icon("logo", 18),
       h("div", { class: "dcard__chips" }, chips),
       h("div", { class: "dcard__title" }, d.title)),
     h("div", { class: "dcard__foot" },
       h("div", { class: "dcard__brief" }, d.brief || `${plural(d.screens.length, "screen")}`),
-      h("div", { class: "dcard__meta" }, d.status === "archived" ? `Built ${ago(d.archivedAt)}` : d.savedAt ? `Changed ${ago(d.savedAt)}` : "")));
+      h("div", { class: "dcard__meta" }, d.status === "archived" ? `Built ${ago(d.archivedAt)}` : SITE ? `Published ${ago(d.latestVersion?.at)}` : d.savedAt ? `Changed ${ago(d.savedAt)}` : "")));
 }
 
 function folderName(name) {
@@ -223,8 +256,9 @@ const prefs = {
   },
 };
 
-async function design(id) {
-  const state = { d: null, device: prefs.device, pop: null, canvas: null, pictures: null, publishing: null };
+async function design(id, version = null) {
+  // ref: the published version the canvas shows (online, and for archived designs); null: the latest work.
+  const state = { d: null, device: prefs.device, pop: null, canvas: null, pictures: null, publishing: null, ref: version };
   const bar = h("header", { class: "bar" });
   const note = h("div", { class: "viewing", hidden: true });
   const stage = h("main", { class: "stage stage--flow" });
@@ -242,7 +276,9 @@ async function design(id) {
       return false;
     }
     document.title = `${state.d.title} · Liveframe`;
-    if (state.d.status === "designing") keepRunning();
+    const ns = state.d.versions.map((v) => v.n);
+    if (SITE || state.d.status === "archived") state.ref = ns.includes(state.ref) ? state.ref : ns.at(-1) ?? null;
+    if (!SITE && state.d.status === "designing") keepRunning();
     return true;
   }
 
@@ -271,8 +307,10 @@ async function design(id) {
   }
 
   const viewportOf = () => (state.device === "phone" ? { width: 390, height: 844 } : { width: 1440, height: 900 });
+  // A published version (online, and archived designs): its own pictures.
+  const shown = () => (state.ref != null ? state.d.versions.find((v) => v.n === state.ref) : null);
   async function loadPictures() {
-    if (state.d.status === "archived") return;
+    if (shown()) return;
     const { width, height } = viewportOf();
     const size = `${width}x${height}`;
     try {
@@ -283,19 +321,23 @@ async function design(id) {
     } catch {}
   }
   const pictureOf = (c) => {
+    const v = shown();
+    if (v) {
+      const s = v.screens.find((x) => (x.key ?? x.page) === c.page);
+      const file = state.device === "phone" ? s?.phonePicture ?? s?.picture : s?.picture;
+      return file ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(file)}` : null;
+    }
     const { width, height } = viewportOf();
     const p = state.pictures;
     const stamp = p?.size === `${width}x${height}` ? p.stamps[c.page] : null;
-    if (stamp) return `http://127.0.0.1:${location.port}/view/pictures/${enc}/${encodeURIComponent(c.page)}@${width}x${height}.jpg?v=${stamp}`;
-    // An archived design: its last published pictures.
-    const v = state.d.latestVersion;
-    const shot = v?.screens?.find((s) => (s.key ?? s.page) === c.page)?.picture;
-    return state.d.status === "archived" && shot ? `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(shot)}` : null;
+    return stamp ? `http://127.0.0.1:${location.port}/view/pictures/${enc}/${encodeURIComponent(c.page)}@${width}x${height}.jpg?v=${stamp}` : null;
   };
 
   // The canvas: the design's screens; with ideas, a row per idea ("Before" first), side by side.
   function groups() {
     const d = state.d;
+    const pv = shown();
+    if (pv) return versionGroups(pv);
     const live = d.status === "designing";
     const v = d.latestVersion;
     const withIdea = (route, idea) => (idea ? `${route}${route.includes("?") ? "&" : "?"}idea=${encodeURIComponent(idea)}` : route);
@@ -317,9 +359,22 @@ async function design(id) {
     }];
   }
 
+  // A published version's canvas: its screens; with ideas, a row per idea ("Before" first).
+  function versionGroups(v) {
+    const card = (s) => ({ page: s.key ?? s.page, title: s.name, note: s.route, thumb: "about:blank", href: `${settings.site}projects/${enc}/v${v.n}/${encodeURIComponent(s.file)}` });
+    if (!v.ideas) return [{ title: "Screens", sub: plural(v.screens.length, "screen"), rows: [{ cards: v.screens.map(card) }] }];
+    const options = [{ id: "before", name: "Before", note: "The app as it is" }, ...v.ideas];
+    const pages = new Set(v.screens.map((s) => s.page)).size;
+    return [{
+      title: "Ideas",
+      sub: `${plural(v.ideas.length, "idea")} · ${plural(pages, "screen")}`,
+      rows: options.map((o) => ({ label: o.note ? `${o.name} · ${o.note}` : o.name, cards: v.screens.filter((s) => s.idea === o.id).map(card) })),
+    }];
+  }
+
   function drawStage({ keep = false } = {}) {
     const d = state.d;
-    if (!d.screens.length) {
+    if (!d.screens.length && !shown()) {
       state.canvas?.destroy();
       state.canvas = null;
       stage.replaceChildren(h("div", { class: "stage__wait" },
@@ -327,7 +382,7 @@ async function design(id) {
         h("span", null, d.status === "designing" ? "Design with Claude and tell it which page you want to change. It shows here as soon as Claude adds it." : "This design has no screens.")), toolbar());
       return;
     }
-    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device]);
+    const shape = JSON.stringify([d.id, d.screens, d.ideas, d.status, state.device, state.ref]);
     if (keep && state.canvas?.shape === shape) return;
     const camera = keep ? state.canvas?.camera() : null;
     state.canvas?.destroy();
@@ -337,13 +392,13 @@ async function design(id) {
       viewport: viewportOf(),
       camera,
       pictures: pictureOf,
-      appStatus: () => (state.d.status === "designing" && state.d.app && state.d.app.state !== "ready" ? state.d.app : null),
+      appStatus: () => (!shown() && state.d.status === "designing" && state.d.app && state.d.app.state !== "ready" ? state.d.app : null),
       onOpen: (c, e) => {
         if (!phone || e.metaKey || e.ctrlKey || e.shiftKey) return;
         e.preventDefault();
         window.open(c.href, "_blank", "popup,noopener,width=390,height=844");
       },
-      onRename: renameIt,
+      onRename: SITE ? null : renameIt,
       onEditEnd: () => state.later && !state.canvas?.editing() && ((state.later = false), refresh()),
     });
     state.canvas.shape = shape;
@@ -387,6 +442,9 @@ async function design(id) {
       parts.push(h("span", null, `Built ${ago(d.archivedAt)}. Archived: nothing changes from here on.`),
         d.latestVersion ? h("a", { href: siteLink(`projects/${enc}/v${d.latestVersion.n}/index.html`), target: "_blank", rel: "noopener" }, `v${d.latestVersion.n}`) : null,
         d.pr ? h("a", { href: d.pr, target: "_blank", rel: "noopener" }, "Pull request") : null);
+    } else if (SITE && shown()) {
+      const v = shown();
+      parts.push(h("span", null, `v${v.n} · ${v.name}, published ${ago(v.at)}${v.designer ? ` by ${v.designer}` : ""}.`));
     } else if (state.publishing) {
       parts.push(h("span", null, `Publishing… ${state.publishing.done} of ${plural(state.publishing.total, "screen")} saved`));
     }
@@ -399,7 +457,11 @@ async function design(id) {
     const live = d.status === "designing";
     const last = d.latestVersion;
 
-    const versions = d.versions.length
+    // Online: the version picker changes what the canvas shows. Here: it opens a version's pages.
+    const versions = SITE
+      ? h("select", { class: "vpick", "aria-label": "Version", onchange: (e) => go(`/d/${enc}/v${e.target.value}`) },
+        [...d.versions].reverse().map((v) => h("option", { value: v.n, selected: v.n === state.ref }, `v${v.n} · ${v.name}${v.n === d.versions.at(-1).n ? " · latest" : ""}`)))
+      : d.versions.length
       ? h("select", { class: "vpick", "aria-label": "Published versions", onchange: (e) => {
         const n = e.target.value;
         e.target.value = "";
@@ -410,7 +472,9 @@ async function design(id) {
       : h("span", { class: "muted hide-narrow" }, "Not published yet");
 
     let actions = [];
-    if (live) {
+    if (SITE) {
+      if (d.status !== "designing") actions.push(h("button", { type: "button", class: "btn btn--done", disabled: true }, icon("check", 14), d.status === "ready" ? `Ready for Development · v${d.ready.version}` : "Built"));
+    } else if (live) {
       const publishTip = !d.screens.length ? "No screens yet" : !d.unpublished ? `Nothing new since v${last?.n}` : state.publishing ? "Publishing…" : null;
       const publishBtn = h("button", { type: "button", class: "btn", disabled: !!publishTip, "aria-expanded": String(state.pop === "publish"), onclick: () => ((state.pop = state.pop === "publish" ? null : "publish"), drawBar()) },
         d.unpublished && d.screens.length ? h("span", { class: "dot" }) : null, "Publish");
@@ -427,8 +491,8 @@ async function design(id) {
     bar.replaceChildren(...[
       brand(),
       h("span", { class: "crumb" }, "/"),
-      live ? editable(h("span", { class: "bar__title" }, d.title), { onSave: async (name) => (await renameIt({ title: true }, name), (document.title = `${name} · Liveframe`)) }) : h("span", { class: "bar__title" }, d.title),
-      live ? h("button", { type: "button", class: "btn tip-start", "data-tip": "A new Claude session for this design", onclick: () => openClaude(d.id, !d.screens.length) }, icon("claude", 14), h("span", { class: "hide-narrow" }, "Design with Claude")) : null,
+      live && !SITE ? editable(h("span", { class: "bar__title" }, d.title), { onSave: async (name) => (await renameIt({ title: true }, name), (document.title = `${name} · Liveframe`)) }) : h("span", { class: "bar__title" }, d.title),
+      live && !SITE ? h("button", { type: "button", class: "btn tip-start", "data-tip": "A new Claude session for this design", onclick: () => openClaude(d.id, !d.screens.length) }, icon("claude", 14), h("span", { class: "hide-narrow" }, "Design with Claude")) : null,
       versions,
       h("span", { class: "spacer" }),
       ...actions,
@@ -543,12 +607,13 @@ async function design(id) {
 // ---------- routing ----------
 
 function route() {
-  const m = /^\/d\/([^/]+)$/.exec(location.pathname);
+  const where = SITE ? location.hash.replace(/^#/, "") || "/" : location.pathname;
+  const m = /^\/d\/([^/]+?)(?:\/v(\d+))?\/?$/.exec(where);
   document.onpointerdown = null;
   document.querySelectorAll(".fcanvas").forEach((c) => c.remove());
-  if (m) design(decodeURIComponent(m[1]));
+  if (m) design(decodeURIComponent(m[1]), m[2] ? Number(m[2]) : null);
   else home();
 }
 
-window.addEventListener("popstate", route);
+window.addEventListener(SITE ? "hashchange" : "popstate", route);
 route();

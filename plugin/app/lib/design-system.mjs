@@ -11,12 +11,13 @@
 // Read from the app's main line as this Mac's copy has it (git, not the working files), with the
 // paths the app profile names. Only pages whose content changed are written: each page carries a
 // hash of its content and the app commit it was made from, so an app change that doesn't touch the
-// tokens or components leaves the pages alone.
+// tokens or components leaves the pages alone. A Liveframe older than the one that last wrote them
+// leaves them alone too (index.json says which), so designers on different versions don't fight.
 
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { DESIGN_REPO, APP_REPO } from "./config.mjs";
+import { DESIGN_REPO, APP_REPO, VERSION, newerVersion } from "./config.mjs";
 import { git, gitOk, inOrder, commitPaths, pushSoon } from "./git.mjs";
 import { profile } from "./profile.mjs";
 
@@ -227,6 +228,10 @@ export async function updateDesignSystem(ref) {
   const ds = await readDesignSystem(sha);
   const source = { app: p.name, branch: p.branch, sha, at };
   const want = pages(ds, p);
+  const indexFile = path.join(OUT, "index.json");
+  const oldIndex = fs.existsSync(indexFile) ? JSON.parse(fs.readFileSync(indexFile, "utf8")) : null;
+  // Made by a newer Liveframe (another designer's): leave it; theirs keeps it up to date.
+  if (newerVersion(oldIndex?.liveframe, VERSION)) return { changed: [], removed: [], sha, committed: false, skipped: oldIndex.liveframe };
 
   return inOrder(async () => {
     const changed = [];
@@ -245,9 +250,7 @@ export async function updateDesignSystem(ref) {
     for (const f of fs.existsSync(compDir) ? fs.readdirSync(compDir) : []) {
       if (!want[`components/${f}`]) fs.rmSync(path.join(compDir, f)), removed.push(`components/${f}`);
     }
-    const index = { app: p.name, repo: p.repo, branch: p.branch, sha, at, tokens: { colours: ds.tokens.colour.length, type: ds.tokens.type.length, spacing: ds.tokens.spacing.length }, components: ds.components.map((c) => ({ name: c.name, page: `components/${c.slug}.html`, file: c.file })) };
-    const indexFile = path.join(OUT, "index.json");
-    const oldIndex = fs.existsSync(indexFile) ? JSON.parse(fs.readFileSync(indexFile, "utf8")) : null;
+    const index = { app: p.name, liveframe: VERSION, repo: p.repo, branch: p.branch, sha, at, tokens: { colours: ds.tokens.colour.length, type: ds.tokens.type.length, spacing: ds.tokens.spacing.length }, components: ds.components.map((c) => ({ name: c.name, page: `components/${c.slug}.html`, file: c.file })) };
     const sameShape = oldIndex && JSON.stringify({ ...oldIndex, sha: 0, at: 0 }) === JSON.stringify({ ...index, sha: 0, at: 0 });
     if (!sameShape || changed.length || removed.length) fs.writeFileSync(indexFile, JSON.stringify(index, null, 2) + "\n");
     const what = [...changed, ...removed].filter((f) => f.endsWith(".html")).map((f) => path.basename(f, ".html"));

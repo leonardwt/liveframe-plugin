@@ -39,3 +39,14 @@ export const CHROME = process.env.LIVEFRAME_CHROME ?? "/Applications/Google Chro
 
 /** Tests: don't push to GitHub. */
 export const NO_PUSH = process.env.LIVEFRAME_NO_PUSH === "1";
+
+/** This Liveframe's version (package.json). Pages it writes into the design repo carry it. */
+export const VERSION = JSON.parse((await import("node:fs")).readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+
+/** a > b, for versions like 0.2.0. */
+export function newerVersion(a, b) {
+  const pa = String(a ?? "0").split(".").map(Number);
+  const pb = String(b ?? "0").split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+}
