@@ -343,6 +343,8 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
 
   root.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".zpill, .is-editing, .fstep__title")) return;
+    // A drag on the canvas never selects the page's text (the browser would tint screens and labels).
+    if (e.button === 0) e.preventDefault();
     root.focus({ preventScroll: true });
     moved = false;
     const start = { x: e.clientX, y: e.clientY };

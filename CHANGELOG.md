@@ -2,6 +2,11 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.5.1
+
+- Dragging a selection box no longer tints other screens and labels blue (the browser was selecting
+  the page's text as you dragged).
+
 ## 0.5.0
 
 - **Arrange the canvas like FigJam** (your own designs):

@@ -316,3 +316,5 @@ a.btn[aria-disabled="true"] { pointer-events: none; opacity: 0.5; }
 .toast { display: flex; align-items: center; gap: 12px; }
 .toast__act { border: 0; background: transparent; color: var(--blue-text); font: 600 13px/1 var(--font); cursor: pointer; padding: 4px 2px; }
 .toast__act:hover { text-decoration: underline; }
+.fcanvas { -webkit-user-select: none; user-select: none; }
+.fcanvas .is-editing { -webkit-user-select: text; user-select: text; }
