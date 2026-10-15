@@ -199,9 +199,19 @@ export function flowCanvas({ groups, viewport, pictures, appStatus, camera, layo
   function showPicture(c) {
     const src = pictures?.(c.card) ?? null;
     const app = appStatus?.();
+    const had = c.pic.getAttribute("src");
+    if (src && had && had !== src) {
+      // A newer picture of a screen that already shows one: load it first, then swap, so the
+      // screen never goes blank in between.
+      if (c.next !== src) {
+        c.next = src;
+        const img = new Image();
+        img.onload = () => c.next === src && img.decode().catch(() => {}).then(() => c.next === src && ((c.pic.src = src), (c.next = null)));
+        img.src = src;
+      }
+    } else if (src && !had) c.pic.src = src;
     c.wait.hidden = !!src;
     c.pic.hidden = !src;
-    if (src && c.pic.getAttribute("src") !== src) c.pic.src = src;
     c.wait.firstChild.textContent = app ? `${app.label}…` : "Taking a picture…";
     c.wait.lastChild.textContent = app ? "The screen shows here once it's running" : "Click it to open the live page";
   }

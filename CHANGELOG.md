@@ -2,6 +2,11 @@
 
 Written for designers: what changed for you. `/liveframe:update` shows the parts newer than yours.
 
+## 0.5.3
+
+- **No more white flashes on the canvas**: when Liveframe retakes a screen's picture (after every
+  change), the new one is loaded first and then swapped in. Empty screens are dark, not white.
+
 ## 0.5.2
 
 - **Select, move and delete exactly the frame you pick.** With ideas, deleting a frame takes that
